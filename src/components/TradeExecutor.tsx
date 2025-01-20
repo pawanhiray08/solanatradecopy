@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Dispatch, SetStateAction } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
-export function TradeExecutor() {
+interface TradeExecutorProps {
+  onTokenSelect: Dispatch<SetStateAction<string | null>>;
+}
+
+export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
   const { publicKey, signTransaction } = useWallet();
   const [maxTradeSize, setMaxTradeSize] = useState<number>(1); // in SOL
   const [stopLoss, setStopLoss] = useState<number>(10); // percentage
