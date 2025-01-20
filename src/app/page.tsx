@@ -39,7 +39,16 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  function renderChart(data, ctx) {
+  function renderChart(data: {
+    labels: string[];
+    datasets: {
+      label: string;
+      data: number[];
+      borderColor?: string;
+      fill?: boolean;
+      tension?: number;
+    }[];
+  }, ctx: CanvasRenderingContext2D) {
     if (myChart) {
       myChart.destroy();
     }
