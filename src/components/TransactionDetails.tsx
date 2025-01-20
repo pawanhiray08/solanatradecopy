@@ -38,22 +38,31 @@ export function TransactionDetails() {
     // Subscribe to new transactions
     const subscription = supabase
       .channel('transactions')
-      .on('INSERT', '*', (payload: { new: TransactionPayload }, context: any) => {
-        const transaction: Transaction = {
-          id: payload.new.signature,
-          signature: payload.new.signature,
-          wallet_address: payload.new.wallet,
-          type: payload.new.type,
-          token_in: payload.new.token_address,
-          token_out: '',
-          amount_in: payload.new.amount?.toString() || '0',
-          amount_out: '0',
-          dex: 'Unknown',
-          status: 'completed',
-          timestamp: payload.new.timestamp
-        };
-        setTransactions(prev => [transaction, ...prev]);
-      });
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload: { new: TransactionPayload }) => {
+          const transaction: Transaction = {
+            id: payload.new.signature,
+            signature: payload.new.signature,
+            wallet_address: payload.new.wallet,
+            type: payload.new.type,
+            token_in: payload.new.token_address || '',
+            token_out: '',  
+            amount_in: payload.new.amount?.toString() || '0',
+            amount_out: '0',  
+            dex: 'unknown',  
+            status: 'completed',
+            timestamp: payload.new.timestamp
+          };
+          setTransactions(prev => [transaction, ...prev]);
+        }
+      )
+      .subscribe();
 
     return () => {
       subscription.unsubscribe();
