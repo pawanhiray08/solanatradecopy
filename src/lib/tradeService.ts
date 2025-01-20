@@ -114,9 +114,9 @@ export class TradeService {
 
       for (const endpoint of endpoints) {
         const response = await supabase.from(endpoint).select('*').limit(1);
-        if (response.error && response.error.status === 404) {
-          console.error(`Error: ${endpoint} endpoint not found`);
-          throw new Error(`Endpoint not found: ${endpoint}`);
+        if (response.error) {
+          console.error(`Error accessing endpoint ${endpoint}:`, response.error);
+          throw new Error(`Error accessing endpoint: ${endpoint}`);
         }
       }
 
@@ -124,9 +124,9 @@ export class TradeService {
       const tables = ['dex_trades', 'insider_wallets', 'trade_settings', 'trade_alerts'];
       for (const table of tables) {
         const response = await supabase.from(table).select('*').limit(1);
-        if (response.error && response.error.status === 404) {
-          console.error(`Error: ${table} table not found`);
-          throw new Error(`Table not found: ${table}`);
+        if (response.error) {
+          console.error(`Error accessing table ${table}:`, response.error);
+          throw new Error(`Error accessing table: ${table}`);
         }
       }
     } catch (error) {
