@@ -1,6 +1,7 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Decimal } from 'decimal.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Token } from '@solana/spl-token-v2';
+import Decimal from 'decimal.js';
 
 export interface SwapParams {
   fromToken: PublicKey;

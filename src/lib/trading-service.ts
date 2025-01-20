@@ -1,7 +1,7 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { DexService, SwapParams } from './dex';
 import { supabase } from './supabase';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 
 export interface TradeSettings {
   maxTradeSize: number;

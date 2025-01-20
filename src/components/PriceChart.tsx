@@ -103,7 +103,9 @@ export function PriceChart({ tokenAddress }: { tokenAddress: string }) {
       x: {
         type: 'time' as const,
         time: {
-          unit: timeframe === '1H' ? 'minute' : timeframe === '24H' ? 'hour' : 'day',
+          unit: timeframe === '1H' ? 'minute' as const : 
+                timeframe === '24H' ? 'hour' as const : 
+                'day' as const,
         },
         title: {
           display: true,
