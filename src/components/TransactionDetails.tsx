@@ -36,28 +36,32 @@ export function TransactionDetails() {
   useEffect(() => {
     loadTransactions();
     // Subscribe to new transactions
-    const subscription = supabase
-      .channel('transactions')
+    const channel = supabase.channel('transactions');
+    
+    const subscription = channel
       .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions'
-        },
-        (payload: { new: TransactionPayload }) => {
+        'presence' as const,
+        { event: 'sync' },
+        () => {
+          console.log('Presence sync');
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'transaction' },
+        (payload) => {
           const transaction: Transaction = {
-            id: payload.new.signature,
-            signature: payload.new.signature,
-            wallet_address: payload.new.wallet,
-            type: payload.new.type,
-            token_in: payload.new.token_address || '',
-            token_out: '',  
-            amount_in: payload.new.amount?.toString() || '0',
-            amount_out: '0',  
-            dex: 'unknown',  
+            id: payload.payload.signature,
+            signature: payload.payload.signature,
+            wallet_address: payload.payload.wallet,
+            type: payload.payload.type,
+            token_in: payload.payload.token_address || '',
+            token_out: '',
+            amount_in: payload.payload.amount?.toString() || '0',
+            amount_out: '0',
+            dex: 'unknown',
             status: 'completed',
-            timestamp: payload.new.timestamp
+            timestamp: payload.payload.timestamp
           };
           setTransactions(prev => [transaction, ...prev]);
         }
