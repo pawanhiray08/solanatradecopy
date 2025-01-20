@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Chart, registerables } from 'chart.js/auto';
 import { useWallet } from '@solana/wallet-adapter-react';
 import dynamic from 'next/dynamic';
 import { InsiderWallets } from '@/components/InsiderWallets';
@@ -16,7 +17,6 @@ import { InsiderWalletManager } from '@/components/InsiderWalletManager';
 import { TradeManager } from '@/components/TradeManager';
 import { TradingDashboard } from '@/components/TradingDashboard';
 import TestConnection from '@/components/TestConnection';
-import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 
 Chart.register(...registerables);
@@ -31,7 +31,7 @@ export default function Home() {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'trading' | 'portfolio' | 'social' | 'insiders' | 'copyTrading'>('insiders');
   const [isLoading, setIsLoading] = useState(true);
-  let myChart;
+  let myChart: Chart | undefined;
 
   useEffect(() => {
     // Simulate loading delay for dynamic imports
