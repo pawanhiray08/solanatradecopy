@@ -7,7 +7,9 @@ import { supabase } from '@/lib/supabase';
 // List of insider wallets to monitor
 const INSIDER_WALLETS = [
   // Add your insider wallet addresses here
-  "5KKsLVU6TcbVDK4BS6K1DGDxnh4Q9xjYJ8XaDCG5t8ht",  // Example wallet
+  "FUEatMybNTZZFAomqU8m1jgQXrCZ1zMFMZizuCc65X5R",  // Example wallet
+  // Add more insider wallets below in the format:
+  // "wallet_address",  // Wallet description or trader name
 ];
 
 interface InsiderWalletsProps {

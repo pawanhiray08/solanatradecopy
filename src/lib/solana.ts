@@ -1,6 +1,6 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 
 export const connection = new Connection(
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.testnet.solana.com',
@@ -10,8 +10,8 @@ export const connection = new Connection(
 export type TokenSwapInfo = {
   tokenIn: string;
   tokenOut: string;
-  amountIn: Decimal;
-  amountOut: Decimal;
+  amountIn: decimal.Decimal;
+  amountOut: decimal.Decimal;
   dex: 'raydium' | 'orca';
 };
 

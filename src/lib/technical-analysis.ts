@@ -2,11 +2,11 @@ import Decimal from 'decimal.js';
 
 export interface PriceData {
   timestamp: number;
-  open: Decimal;
-  high: Decimal;
-  low: Decimal;
-  close: Decimal;
-  volume: Decimal;
+  open: typeof Decimal;
+  high: typeof Decimal;
+  low: typeof Decimal;
+  close: typeof Decimal;
+  volume: typeof Decimal;
 }
 
 export class TechnicalAnalysis {
@@ -16,8 +16,8 @@ export class TechnicalAnalysis {
     this.data = data;
   }
 
-  static calculateSMA(prices: Decimal[], period: number): Decimal[] {
-    const sma: Decimal[] = [];
+  static calculateSMA(prices: typeof Decimal[], period: number): typeof Decimal[] {
+    const sma: typeof Decimal[] = [];
     for (let i = period - 1; i < prices.length; i++) {
       let sum = new Decimal(0);
       for (let j = 0; j < period; j++) {
@@ -28,8 +28,8 @@ export class TechnicalAnalysis {
     return sma;
   }
 
-  static calculateEMA(prices: Decimal[], period: number): Decimal[] {
-    const ema: Decimal[] = [];
+  static calculateEMA(prices: typeof Decimal[], period: number): typeof Decimal[] {
+    const ema: typeof Decimal[] = [];
     const multiplier = new Decimal(2).div(new Decimal(period + 1));
     
     // Start with SMA
@@ -45,10 +45,10 @@ export class TechnicalAnalysis {
     return ema;
   }
 
-  static calculateRSI(prices: Decimal[], period: number = 14): Decimal[] {
-    const rsi: Decimal[] = [];
-    let gains: Decimal[] = [];
-    let losses: Decimal[] = [];
+  static calculateRSI(prices: typeof Decimal[], period: number = 14): typeof Decimal[] {
+    const rsi: typeof Decimal[] = [];
+    let gains: typeof Decimal[] = [];
+    let losses: typeof Decimal[] = [];
     
     // Calculate price changes
     for (let i = 1; i < prices.length; i++) {
@@ -74,14 +74,14 @@ export class TechnicalAnalysis {
     return rsi;
   }
 
-  static calculateMACD(prices: Decimal[]): {
-    macd: Decimal[];
-    signal: Decimal[];
-    histogram: Decimal[];
+  static calculateMACD(prices: typeof Decimal[]): {
+    macd: typeof Decimal[];
+    signal: typeof Decimal[];
+    histogram: typeof Decimal[];
   } {
     const fastEMA = this.calculateEMA(prices, 12);
     const slowEMA = this.calculateEMA(prices, 26);
-    const macd: Decimal[] = [];
+    const macd: typeof Decimal[] = [];
     
     // Calculate MACD line
     for (let i = 0; i < fastEMA.length; i++) {
@@ -97,14 +97,14 @@ export class TechnicalAnalysis {
     return { macd, signal, histogram };
   }
 
-  static calculateBollingerBands(prices: Decimal[], period: number = 20, stdDev: number = 2): {
-    upper: Decimal[];
-    middle: Decimal[];
-    lower: Decimal[];
+  static calculateBollingerBands(prices: typeof Decimal[], period: number = 20, stdDev: number = 2): {
+    upper: typeof Decimal[];
+    middle: typeof Decimal[];
+    lower: typeof Decimal[];
   } {
     const middle = this.calculateSMA(prices, period);
-    const upper: Decimal[] = [];
-    const lower: Decimal[] = [];
+    const upper: typeof Decimal[] = [];
+    const lower: typeof Decimal[] = [];
     
     for (let i = period - 1; i < prices.length; i++) {
       const slice = prices.slice(i - period + 1, i + 1);
@@ -120,12 +120,12 @@ export class TechnicalAnalysis {
     return { upper, middle, lower };
   }
 
-  static calculateVolumeSMA(volumes: Decimal[], period: number = 20): Decimal[] {
+  static calculateVolumeSMA(volumes: typeof Decimal[], period: number = 20): typeof Decimal[] {
     return this.calculateSMA(volumes, period);
   }
 
-  static calculateOBV(prices: Decimal[], volumes: Decimal[]): Decimal[] {
-    const obv: Decimal[] = [new Decimal(0)];
+  static calculateOBV(prices: typeof Decimal[], volumes: typeof Decimal[]): typeof Decimal[] {
+    const obv: typeof Decimal[] = [new Decimal(0)];
     
     for (let i = 1; i < prices.length; i++) {
       const currentOBV = obv[i - 1].plus(
@@ -138,9 +138,9 @@ export class TechnicalAnalysis {
     return obv;
   }
 
-  static calculateFibonacciLevels(high: Decimal, low: Decimal): {
-    levels: { [key: string]: Decimal };
-    extensions: { [key: string]: Decimal };
+  static calculateFibonacciLevels(high: typeof Decimal, low: typeof Decimal): {
+    levels: { [key: string]: typeof Decimal };
+    extensions: { [key: string]: typeof Decimal };
   } {
     const diff = high.minus(low);
     
@@ -162,10 +162,10 @@ export class TechnicalAnalysis {
     };
   }
 
-  static calculatePivotPoints(high: Decimal, low: Decimal, close: Decimal): {
-    pivot: Decimal;
-    supports: Decimal[];
-    resistances: Decimal[];
+  static calculatePivotPoints(high: typeof Decimal, low: typeof Decimal, close: typeof Decimal): {
+    pivot: typeof Decimal;
+    supports: typeof Decimal[];
+    resistances: typeof Decimal[];
   } {
     const pivot = (high.plus(low).plus(close)).div(new Decimal(3));
     

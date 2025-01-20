@@ -48,7 +48,7 @@ export class TradingService {
     }
   }
 
-  private async decodeSwapTransaction(transaction: ParsedTransactionWithMeta) {
+  private async decodeSwapTransaction(transaction: ParsedTransactionWithMeta): Promise<any> {
     // This is a placeholder for actual transaction decoding logic
     // You'll need to implement specific DEX protocol transaction parsing
     const instructions = transaction.transaction.message.instructions;
@@ -59,10 +59,10 @@ export class TradingService {
         // Parse the instruction data to get swap details
         // This is simplified, you'll need to implement actual parsing logic
         return {
-          fromToken: new PublicKey("..."), // Extract from instruction
-          toToken: new PublicKey("..."),   // Extract from instruction
+          fromToken: new PublicKey("...").toString(), // Extract from instruction
+          toToken: new PublicKey("...").toString(),   // Extract from instruction
           amount: new Decimal(0),          // Extract from instruction
-          price: new Decimal(0),           // Calculate from amounts
+          slippage: new Decimal(0),           // Calculate from amounts
         };
       }
     }
@@ -73,7 +73,12 @@ export class TradingService {
   private async saveTransaction(
     signature: string,
     insiderWallet: string,
-    swapDetails: any
+    swapDetails: {
+      fromToken: string;
+      toToken: string;
+      amount: typeof Decimal;
+      slippage: typeof Decimal;
+    }
   ) {
     const { error } = await supabase
       .from('transactions')
@@ -81,10 +86,10 @@ export class TradingService {
         signature,
         wallet_address: insiderWallet,
         type: 'swap',
-        token_in: swapDetails.fromToken.toString(),
-        token_out: swapDetails.toToken.toString(),
+        token_in: swapDetails.fromToken,
+        token_out: swapDetails.toToken,
         amount_in: swapDetails.amount.toString(),
-        amount_out: swapDetails.amount.mul(swapDetails.price).toString(),
+        amount_out: swapDetails.amount.mul(swapDetails.slippage).toString(),
         dex: 'raydium',
         status: 'completed'
       });
@@ -94,22 +99,26 @@ export class TradingService {
     }
   }
 
-  private async executeCopyTrade(swapDetails: any) {
+  private async executeCopyTrade(swapDetails: {
+    fromToken: string;
+    toToken: string;
+    amount: typeof Decimal;
+    slippage: typeof Decimal;
+  }) {
     try {
       // Calculate trade size based on settings
       const tradeSize = this.calculateTradeSize(swapDetails.amount);
-
-      // Prepare swap parameters
+      
       const swapParams: SwapParams = {
-        fromToken: swapDetails.fromToken,
-        toToken: swapDetails.toToken,
+        fromToken: new PublicKey(swapDetails.fromToken),
+        toToken: new PublicKey(swapDetails.toToken),
         amount: tradeSize,
-        slippage: new Decimal(this.settings.slippageTolerance), // slippage tolerance
+        slippage: swapDetails.slippage
       };
 
       // Check if we have enough balance
       const balance = await this.dexService.getTokenBalance(
-        this.userWallet,
+        this.userWallet.toString(),
         swapParams.fromToken
       );
 
@@ -119,10 +128,12 @@ export class TradingService {
       }
 
       // Execute the swap
-      const result = await this.dexService.executeSwap(
-        this.userWallet,
-        swapParams,
-        async (tx) => tx // Replace with actual transaction signing logic
+      const result = await this.dexService.swapTokens(
+        swapParams.fromToken,
+        swapParams.toToken,
+        swapParams.amount,
+        swapParams.slippage,
+        this.userWallet.toString()
       );
 
       console.log('Copy trade executed:', result);
@@ -131,7 +142,7 @@ export class TradingService {
     }
   }
 
-  private calculateTradeSize(insiderAmount: Decimal): Decimal {
+  private calculateTradeSize(insiderAmount: typeof Decimal): typeof Decimal {
     // Convert max trade size from SOL to lamports
     const maxSize = new Decimal(this.settings.maxTradeSize).mul(new Decimal(10).pow(9));
     const minSize = new Decimal(this.settings.minTradeSize).mul(new Decimal(10).pow(9));

@@ -7,7 +7,7 @@ import {
   SYSVAR_RENT_PUBKEY
 } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 
 // Raydium Program IDs
 const RAYDIUM_LIQUIDITY_PROGRAM_ID = new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8');
@@ -51,14 +51,14 @@ export interface RaydiumPool {
   quoteMint: string;
   baseDecimals: number;
   quoteDecimals: number;
-  baseReserve: Decimal;
-  quoteReserve: Decimal;
+  baseReserve: typeof Decimal;
+  quoteReserve: typeof Decimal;
 }
 
 export interface SwapResult {
-  amountIn: Decimal;
-  amountOut: Decimal;
-  priceImpact: Decimal;
+  amountIn: typeof Decimal;
+  amountOut: typeof Decimal;
+  priceImpact: typeof Decimal;
 }
 
 export class RaydiumService {
@@ -98,8 +98,7 @@ export class RaydiumService {
       }
 
       // Create and return the transaction
-      const transaction = new Transaction();
-      transaction.add(instruction);
+      const transaction = new Transaction().add(instruction);
       return transaction;
 
     } catch (error) {
@@ -110,17 +109,12 @@ export class RaydiumService {
 
   private calculateMinimumAmountOut(
     amountIn: number,
-    slippage: Decimal,
+    slippage: typeof Decimal,
     fees: PoolInfo['fees']
-  ): number {
-    // Calculate fees
-    const { swapFeeNumerator, swapFeeDenominator } = fees;
-    const totalFeeNumerator = swapFeeNumerator;
-    const totalFeeDenominator = swapFeeDenominator;
-    const amountAfterFees = amountIn * (1 - totalFeeNumerator / totalFeeDenominator);
-    
-    // Apply slippage tolerance
-    return Math.floor(amountAfterFees * (1 - slippage.toNumber() / 100));
+  ): Promise<typeof Decimal> {
+    const feePct = new Decimal(fees.swapFeeNumerator).div(fees.swapFeeDenominator);
+    const afterFees = new Decimal(amountIn).times(new Decimal(1).minus(feePct));
+    return afterFees.times(new Decimal(1).minus(slippage));
   }
 
   private async createSwapInstruction(
@@ -131,24 +125,24 @@ export class RaydiumService {
     minAmountOut: number
   ): Promise<TransactionInstruction | null> {
     try {
-      return new TransactionInstruction({
-        programId: RAYDIUM_AMM_PROGRAM_ID,
+      // Create the instruction data
+      const data = Buffer.from([
+        // Add actual instruction data based on Raydium protocol
+      ]);
+
+      // Create the instruction
+      const instruction = new TransactionInstruction({
+        programId: new PublicKey(pool.programId),
         keys: [
-          { pubkey: new PublicKey(pool.id), isSigner: false, isWritable: true },
-          { pubkey: new PublicKey(pool.authority), isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(pool.openOrders), isSigner: false, isWritable: true },
-          { pubkey: new PublicKey(pool.targetOrders), isSigner: false, isWritable: true },
-          { pubkey: tokenIn, isSigner: false, isWritable: true },
+          { pubkey: tokenIn, isSigner: true, isWritable: true },
           { pubkey: tokenOut, isSigner: false, isWritable: true },
-          { pubkey: new PublicKey(pool.baseVault), isSigner: false, isWritable: true },
-          { pubkey: new PublicKey(pool.quoteVault), isSigner: false, isWritable: true },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-          { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+          { pubkey: new PublicKey(pool.id), isSigner: false, isWritable: true },
+          // Add other required accounts
         ],
-        data: Buffer.from([
-          // Add instruction data based on Raydium protocol
-        ])
+        data,
       });
+
+      return instruction;
     } catch (error) {
       console.error('Error creating swap instruction:', error);
       return null;
@@ -160,20 +154,43 @@ export class RaydiumService {
     tokenOut: PublicKey
   ): Promise<PoolInfo | null> {
     // Implement pool finding logic
-    // This should return the pool with the best liquidity/price
+    // For now, return null as placeholder
     return null;
   }
 
-  async getPrice(pool: RaydiumPool): Promise<Decimal> {
-    return pool.quoteReserve.div(pool.baseReserve);
+  async getPrice(pool: PoolInfo): Promise<Decimal> {
+    // Convert PoolInfo to RaydiumPool
+    const raydiumPool: RaydiumPool = {
+      address: pool.id,
+      baseMint: pool.baseMint,
+      quoteMint: pool.quoteMint,
+      baseDecimals: pool.baseDecimals,
+      quoteDecimals: pool.quoteDecimals,
+      baseReserve: new Decimal(0),
+      quoteReserve: new Decimal(0)
+    };
+    
+    // Get the reserves
+    const baseVault = new PublicKey(pool.baseVault);
+    const quoteVault = new PublicKey(pool.quoteVault);
+    
+    const [baseBalance, quoteBalance] = await Promise.all([
+      this.connection.getTokenAccountBalance(baseVault),
+      this.connection.getTokenAccountBalance(quoteVault)
+    ]);
+    
+    raydiumPool.baseReserve = new Decimal(baseBalance.value.amount);
+    raydiumPool.quoteReserve = new Decimal(quoteBalance.value.amount);
+    
+    return raydiumPool.quoteReserve.div(raydiumPool.baseReserve);
   }
 
   async calculateAmountOut(
-    pool: RaydiumPool,
-    amountIn: Decimal,
-    slippage: Decimal
-  ): Promise<Decimal> {
+    pool: PoolInfo,
+    amountIn: typeof Decimal,
+    slippage: typeof Decimal
+  ): Promise<typeof Decimal> {
     const price = await this.getPrice(pool);
-    return amountIn.mul(price);
+    return amountIn.times(price);
   }
 }

@@ -28,6 +28,32 @@ export type UserSettings = {
   updated_at: string;
 };
 
+export type InsiderWallet = {
+  id: string;
+  address: string;
+  label: string;
+  success_rate: number;
+  total_trades: number;
+  successful_trades: number;
+  last_trade_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Transaction = {
+  id: string;
+  wallet_address: string;
+  signature: string;
+  token_address: string;
+  token_symbol: string | null;
+  type: 'buy' | 'sell';
+  amount: number;
+  price: number;
+  profit_loss: number | null;
+  timestamp: string;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -45,6 +71,16 @@ export type Database = {
         Row: UserSettings;
         Insert: Omit<UserSettings, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<UserSettings, 'id'>>;
+      };
+      insider_wallets: {
+        Row: InsiderWallet;
+        Insert: Omit<InsiderWallet, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<InsiderWallet, 'id'>>;
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: Omit<Transaction, 'id' | 'created_at'>;
+        Update: Partial<Omit<Transaction, 'id'>>;
       };
     };
   };
