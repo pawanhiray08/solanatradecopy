@@ -15,6 +15,7 @@ import {
   Legend,
   ArcElement,
   TimeScale,
+  Chart,
 } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { Line, Doughnut } from 'react-chartjs-2';
@@ -64,6 +65,7 @@ interface PortfolioHistory {
 
 export function PortfolioAnalytics() {
   const { publicKey } = useWallet();
+  let valueChart: ChartJS<"line", number[], Date> | null = null;
   const [metrics, setMetrics] = useState<PortfolioMetrics>({
     totalValue: 0,
     dailyPnL: 0,
@@ -256,8 +258,7 @@ export function PortfolioAnalytics() {
     return data;
   };
 
-  let valueChart;
-  let allocationChart;
+  let allocationChart: ChartJS<"doughnut", number[], unknown> | null = null;
 
   const valueChartData = {
     labels: historicalValue.map(d => d.date),
@@ -342,7 +343,7 @@ export function PortfolioAnalytics() {
                 },
               }}
               ref={(chart) => {
-                valueChart = chart;
+                valueChart = chart || null;
               }}
             />
           </div>
@@ -359,7 +360,7 @@ export function PortfolioAnalytics() {
                     maintainAspectRatio: false,
                   }}
                   ref={(chart) => {
-                    allocationChart = chart;
+                    allocationChart = chart || null;
                   }}
                 />
               </div>
