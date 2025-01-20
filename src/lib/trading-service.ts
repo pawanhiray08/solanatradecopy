@@ -57,15 +57,22 @@ export class TradingService {
     const instructions = transaction.transaction.message.instructions;
     
     for (const instruction of instructions) {
-      // Check if this is a swap instruction
-      if (instruction.programId.toString() === process.env.NEXT_PUBLIC_RAYDIUM_SWAP_PROGRAM_ID) {
+      // Check if this is a swap instruction and has the required properties
+      if ('programId' in instruction && 
+          instruction.programId.toString() === process.env.NEXT_PUBLIC_RAYDIUM_SWAP_PROGRAM_ID &&
+          'data' in instruction &&
+          'accounts' in instruction) {
+        
+        const accounts = instruction.accounts;
+        if (accounts.length < 2) continue;
+
         // Parse the instruction data to get swap details
         // This is simplified, you'll need to implement actual parsing logic
         return {
-          fromToken: instruction.keys[0].pubkey.toString(), // Extract from instruction
-          toToken: instruction.keys[1].pubkey.toString(),   // Extract from instruction
-          amount: new Decimal(instruction.data.toString('hex', 8, 16)),          // Extract from instruction
-          slippage: new Decimal(0),           // Calculate from amounts
+          fromToken: accounts[0].toString(), // Extract from instruction
+          toToken: accounts[1].toString(),   // Extract from instruction
+          amount: new Decimal(instruction.data.toString('hex', 8, 16)), // Extract from instruction
+          slippage: new Decimal(0),         // Calculate from amounts
         };
       }
     }
