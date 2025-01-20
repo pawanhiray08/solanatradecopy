@@ -13,6 +13,7 @@ import { AdvancedTrading } from '@/components/AdvancedTrading';
 import { PortfolioAnalytics } from '@/components/PortfolioAnalytics';
 import { SocialTrading } from '@/components/SocialTrading';
 import { InsiderWalletManager } from '@/components/InsiderWalletManager';
+import TestConnection from '@/components/TestConnection';
 
 const WalletMultiButtonDynamic = dynamic(
   () => import('@solana/wallet-adapter-react-ui').then(mod => mod.WalletMultiButton),
@@ -51,6 +52,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
+      <TestConnection />
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
