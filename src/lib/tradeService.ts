@@ -54,13 +54,15 @@ export class TradeService {
       const accounts = transaction.transaction.message.accountKeys;
 
       // Look for Raydium or Orca swap instructions
-      const swapInstruction = instructions.find((ix: any) => {
-        // Add logic to identify DEX swap instructions
-        return ix.programId.toString() === process.env.NEXT_PUBLIC_RAYDIUM_PROGRAM_ID || 
-               ix.programId.toString() === process.env.NEXT_PUBLIC_ORCA_PROGRAM_ID;
+      const swapInstruction = instructions.find((ix) => {
+        if ('programId' in ix) {
+          return ix.programId.toString() === process.env.NEXT_PUBLIC_RAYDIUM_PROGRAM_ID || 
+                 ix.programId.toString() === process.env.NEXT_PUBLIC_ORCA_PROGRAM_ID;
+        }
+        return false;
       });
 
-      if (!swapInstruction) return null;
+      if (!swapInstruction || !('programId' in swapInstruction)) return null;
 
       // Extract token information and amounts
       const tokenAddress = ''; // Extract from instruction
