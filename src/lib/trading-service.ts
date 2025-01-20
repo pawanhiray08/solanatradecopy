@@ -8,6 +8,8 @@ export interface TradeSettings {
   stopLossPercentage: number;
   takeProfitPercentage: number;
   autoTradingEnabled: boolean;
+  minTradeSize: number;
+  slippageTolerance: number;
 }
 
 export class TradingService {
@@ -102,7 +104,7 @@ export class TradingService {
         fromToken: swapDetails.fromToken,
         toToken: swapDetails.toToken,
         amount: tradeSize,
-        slippage: 1, // 1% slippage tolerance
+        slippage: new Decimal(this.settings.slippageTolerance), // slippage tolerance
       };
 
       // Check if we have enough balance
@@ -111,7 +113,7 @@ export class TradingService {
         swapParams.fromToken
       );
 
-      if (balance.lt(tradeSize)) {
+      if (balance.lessThan(tradeSize)) {
         console.error('Insufficient balance for trade');
         return;
       }
@@ -131,10 +133,11 @@ export class TradingService {
 
   private calculateTradeSize(insiderAmount: Decimal): Decimal {
     // Convert max trade size from SOL to lamports
-    const maxSize = new Decimal(this.settings.maxTradeSize).mul(1e9);
+    const maxSize = new Decimal(this.settings.maxTradeSize).mul(new Decimal(10).pow(9));
+    const minSize = new Decimal(this.settings.minTradeSize).mul(new Decimal(10).pow(9));
     
-    // Use the smaller of insider's trade size or our max size
-    return Decimal.min(insiderAmount, maxSize);
+    // Use the smaller of insider's trade size or our max size, but not less than min size
+    return Decimal.max(Decimal.min(insiderAmount, maxSize), minSize);
   }
 
   updateSettings(newSettings: TradeSettings) {

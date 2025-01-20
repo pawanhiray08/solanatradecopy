@@ -38,7 +38,7 @@ export function TransactionDetails() {
     // Subscribe to new transactions
     const subscription = supabase
       .channel('transactions')
-      .on('INSERT', (payload) => {
+      .on('INSERT', (payload: { new: TransactionPayload }, context: any) => {
         const transaction: Transaction = {
           id: payload.new.signature,
           signature: payload.new.signature,

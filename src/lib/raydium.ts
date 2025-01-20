@@ -1,35 +1,64 @@
-import { 
-  Connection, 
-  PublicKey, 
-  Transaction, 
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
   SystemProgram,
   SYSVAR_RENT_PUBKEY
 } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 
-// Raydium Program IDs (Testnet)
-export const RAYDIUM_LIQUIDITY_POOL_PROGRAM_ID = new PublicKey(
-  'RaydiumLPp....' // Add Raydium testnet program ID
-);
+// Raydium Program IDs
+const RAYDIUM_LIQUIDITY_PROGRAM_ID = new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8');
+const RAYDIUM_AMM_PROGRAM_ID = new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8');
 
-export const SERUM_PROGRAM_ID = new PublicKey(
-  'SerumDex....' // Add Serum testnet program ID
-);
-
-interface PoolInfo {
-  poolId: PublicKey;
-  lpMint: PublicKey;
-  tokenAMint: PublicKey;
-  tokenBMint: PublicKey;
-  tokenAVault: PublicKey;
-  tokenBVault: PublicKey;
+export interface PoolInfo {
+  id: string;
+  baseMint: string;
+  quoteMint: string;
+  lpMint: string;
+  baseDecimals: number;
+  quoteDecimals: number;
+  lpDecimals: number;
+  version: number;
+  programId: string;
+  authority: string;
+  openOrders: string;
+  targetOrders: string;
+  baseVault: string;
+  quoteVault: string;
+  withdrawQueue: string;
+  lpVault: string;
+  marketVersion: number;
+  marketProgramId: string;
+  marketId: string;
+  marketAuthority: string;
+  marketBaseVault: string;
+  marketQuoteVault: string;
+  marketBids: string;
+  marketAsks: string;
+  marketEventQueue: string;
   fees: {
-    tradeFeeNumerator: number;
-    tradeFeeDenominator: number;
-    ownerTradeFeeNumerator: number;
-    ownerTradeFeeDenominator: number;
+    swapFeeNumerator: number;
+    swapFeeDenominator: number;
   };
+}
+
+export interface RaydiumPool {
+  address: string;
+  baseMint: string;
+  quoteMint: string;
+  baseDecimals: number;
+  quoteDecimals: number;
+  baseReserve: Decimal;
+  quoteReserve: Decimal;
+}
+
+export interface SwapResult {
+  amountIn: Decimal;
+  amountOut: Decimal;
+  priceImpact: Decimal;
 }
 
 export class RaydiumService {
@@ -39,40 +68,11 @@ export class RaydiumService {
     this.connection = connection;
   }
 
-  async findBestPool(
-    tokenAMint: PublicKey,
-    tokenBMint: PublicKey
-  ): Promise<PoolInfo | null> {
-    try {
-      // Fetch all Raydium pools
-      const pools = await this.fetchPools();
-      
-      // Find pool with best liquidity for the token pair
-      return pools.find(
-        pool =>
-          (pool.tokenAMint.equals(tokenAMint) && pool.tokenBMint.equals(tokenBMint)) ||
-          (pool.tokenAMint.equals(tokenBMint) && pool.tokenBMint.equals(tokenAMint))
-      ) || null;
-    } catch (error) {
-      console.error('Error finding pool:', error);
-      return null;
-    }
-  }
-
-  private async fetchPools(): Promise<PoolInfo[]> {
-    // This is a placeholder - you'll need to implement actual pool fetching
-    // You can either:
-    // 1. Fetch from Raydium API
-    // 2. Parse on-chain program accounts
-    return [];
-  }
-
   async createSwapTransaction(
-    userWallet: PublicKey,
     tokenIn: PublicKey,
     tokenOut: PublicKey,
     amountIn: Decimal,
-    slippage: number
+    slippage: Decimal
   ): Promise<Transaction | null> {
     try {
       // Find the best pool for the token pair
@@ -81,27 +81,27 @@ export class RaydiumService {
         throw new Error('No pool found for token pair');
       }
 
-      // Calculate minimum amount out based on slippage
-      const amountInLamports = amountIn.mul(1e9).toNumber();
-      const minAmountOut = this.calculateMinimumAmountOut(
-        amountInLamports,
-        slippage,
-        pool.fees
-      );
-
-      // Create swap instruction
-      const swapInstruction = await this.createSwapInstruction(
-        userWallet,
-        pool,
-        amountInLamports,
-        minAmountOut
-      );
-
-      // Create and return transaction
-      const transaction = new Transaction();
-      transaction.add(swapInstruction);
+      // Calculate the expected output amount
+      const amountOut = await this.calculateAmountOut(pool, amountIn, slippage);
       
+      // Create the swap instruction
+      const instruction = await this.createSwapInstruction(
+        pool,
+        tokenIn,
+        tokenOut,
+        amountIn.toNumber(),
+        amountOut.toNumber()
+      );
+
+      if (!instruction) {
+        throw new Error('Failed to create swap instruction');
+      }
+
+      // Create and return the transaction
+      const transaction = new Transaction();
+      transaction.add(instruction);
       return transaction;
+
     } catch (error) {
       console.error('Error creating swap transaction:', error);
       return null;
@@ -110,86 +110,70 @@ export class RaydiumService {
 
   private calculateMinimumAmountOut(
     amountIn: number,
-    slippage: number,
+    slippage: Decimal,
     fees: PoolInfo['fees']
   ): number {
     // Calculate fees
-    const totalFeeNumerator = fees.tradeFeeNumerator + fees.ownerTradeFeeNumerator;
-    const totalFeeDenominator = fees.tradeFeeDenominator;
-    
-    // Calculate amount after fees
+    const { swapFeeNumerator, swapFeeDenominator } = fees;
+    const totalFeeNumerator = swapFeeNumerator;
+    const totalFeeDenominator = swapFeeDenominator;
     const amountAfterFees = amountIn * (1 - totalFeeNumerator / totalFeeDenominator);
     
     // Apply slippage tolerance
-    return Math.floor(amountAfterFees * (1 - slippage / 100));
+    return Math.floor(amountAfterFees * (1 - slippage.toNumber() / 100));
   }
 
   private async createSwapInstruction(
-    userWallet: PublicKey,
     pool: PoolInfo,
+    tokenIn: PublicKey,
+    tokenOut: PublicKey,
     amountIn: number,
     minAmountOut: number
-  ) {
-    // Create associated token accounts if they don't exist
-    const userTokenAAccount = await Token.getAssociatedTokenAddress(
-      TOKEN_PROGRAM_ID,
-      pool.tokenAMint,
-      userWallet
-    );
-
-    const userTokenBAccount = await Token.getAssociatedTokenAddress(
-      TOKEN_PROGRAM_ID,
-      pool.tokenBMint,
-      userWallet
-    );
-
-    // Create the swap instruction
-    return {
-      programId: RAYDIUM_LIQUIDITY_POOL_PROGRAM_ID,
-      keys: [
-        { pubkey: pool.poolId, isSigner: false, isWritable: true },
-        { pubkey: userWallet, isSigner: true, isWritable: false },
-        { pubkey: userTokenAAccount, isSigner: false, isWritable: true },
-        { pubkey: userTokenBAccount, isSigner: false, isWritable: true },
-        { pubkey: pool.tokenAVault, isSigner: false, isWritable: true },
-        { pubkey: pool.tokenBVault, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-      ],
-      data: Buffer.from([
-        // Instruction data format depends on Raydium's protocol
-        // You'll need to implement the correct data structure
-      ]),
-    };
-  }
-
-  async decodeSwapTransaction(
-    transaction: Transaction
-  ): Promise<{
-    tokenIn: PublicKey;
-    tokenOut: PublicKey;
-    amountIn: Decimal;
-    amountOut: Decimal;
-    pool: PublicKey;
-  } | null> {
+  ): Promise<TransactionInstruction | null> {
     try {
-      for (const instruction of transaction.instructions) {
-        if (instruction.programId.equals(RAYDIUM_LIQUIDITY_POOL_PROGRAM_ID)) {
-          // Decode instruction data
-          // This is a placeholder - implement actual decoding based on Raydium's instruction format
-          return {
-            tokenIn: instruction.keys[2].pubkey,
-            tokenOut: instruction.keys[3].pubkey,
-            amountIn: new Decimal(0), // Extract from instruction data
-            amountOut: new Decimal(0), // Extract from instruction data
-            pool: instruction.keys[0].pubkey,
-          };
-        }
-      }
-      return null;
+      return new TransactionInstruction({
+        programId: RAYDIUM_AMM_PROGRAM_ID,
+        keys: [
+          { pubkey: new PublicKey(pool.id), isSigner: false, isWritable: true },
+          { pubkey: new PublicKey(pool.authority), isSigner: false, isWritable: false },
+          { pubkey: new PublicKey(pool.openOrders), isSigner: false, isWritable: true },
+          { pubkey: new PublicKey(pool.targetOrders), isSigner: false, isWritable: true },
+          { pubkey: tokenIn, isSigner: false, isWritable: true },
+          { pubkey: tokenOut, isSigner: false, isWritable: true },
+          { pubkey: new PublicKey(pool.baseVault), isSigner: false, isWritable: true },
+          { pubkey: new PublicKey(pool.quoteVault), isSigner: false, isWritable: true },
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([
+          // Add instruction data based on Raydium protocol
+        ])
+      });
     } catch (error) {
-      console.error('Error decoding swap transaction:', error);
+      console.error('Error creating swap instruction:', error);
       return null;
     }
+  }
+
+  private async findBestPool(
+    tokenIn: PublicKey,
+    tokenOut: PublicKey
+  ): Promise<PoolInfo | null> {
+    // Implement pool finding logic
+    // This should return the pool with the best liquidity/price
+    return null;
+  }
+
+  async getPrice(pool: RaydiumPool): Promise<Decimal> {
+    return pool.quoteReserve.div(pool.baseReserve);
+  }
+
+  async calculateAmountOut(
+    pool: RaydiumPool,
+    amountIn: Decimal,
+    slippage: Decimal
+  ): Promise<Decimal> {
+    const price = await this.getPrice(pool);
+    return amountIn.mul(price);
   }
 }

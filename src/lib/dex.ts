@@ -1,23 +1,37 @@
-import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Token } from '@solana/spl-token-v2';
-import Decimal from 'decimal.js';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Decimal } from 'decimal.js';
+
+export interface DexInterface {
+  getPrice(tokenAddress: string): Promise<Decimal>;
+  getTokenBalance(tokenAddress: string, walletAddress: string): Promise<Decimal>;
+  swapTokens(
+    tokenInAddress: string,
+    tokenOutAddress: string,
+    amount: Decimal,
+    slippage: Decimal,
+    walletAddress: string
+  ): Promise<{
+    amountIn: Decimal;
+    amountOut: Decimal;
+    priceImpact: Decimal;
+  }>;
+}
 
 export interface SwapParams {
-  fromToken: PublicKey;
-  toToken: PublicKey;
+  fromToken: string;
+  toToken: string;
   amount: Decimal;
-  slippage: number;
+  slippage: Decimal;
 }
 
 export interface SwapResult {
-  signature: string;
   fromAmount: Decimal;
   toAmount: Decimal;
   price: Decimal;
 }
 
-export class DexService {
+export class DexService implements DexInterface {
   private connection: Connection;
   private programId: PublicKey;
 
@@ -26,37 +40,40 @@ export class DexService {
     this.programId = programId;
   }
 
-  async getTokenBalance(walletAddress: PublicKey, tokenMint: PublicKey): Promise<Decimal> {
+  async getTokenBalance(walletAddress: string, tokenMint: string): Promise<Decimal> {
     try {
-      const tokenAccount = await Token.getAssociatedTokenAddress(
-        TOKEN_PROGRAM_ID,
-        tokenMint,
-        walletAddress
+      const tokenAccount = await getAssociatedTokenAddress(
+        new PublicKey(tokenMint),
+        new PublicKey(walletAddress)
       );
 
       const balance = await this.connection.getTokenAccountBalance(tokenAccount);
-      return new Decimal(balance.value.uiAmount || 0);
+      return new Decimal(balance.value.amount).div(new Decimal(10).pow(balance.value.decimals));
     } catch (error) {
       console.error('Error getting token balance:', error);
-      return new Decimal(0);
+      throw error;
     }
   }
 
+  async getPrice(tokenAddress: string): Promise<Decimal> {
+    // Implement actual price calculation
+    return new Decimal(1);
+  }
+
   async createSwapTransaction(
-    walletAddress: PublicKey,
+    walletAddress: string,
     params: SwapParams
-  ): Promise<Transaction> {
-    // This is a placeholder for actual Raydium swap implementation
-    // You'll need to implement the specific DEX protocol's swap logic
-    const transaction = new Transaction();
+  ): Promise<any> {
+    // This is a placeholder for actual DEX swap implementation
+    const transaction = new (await import('@solana/web3.js')).Transaction();
 
     // Example structure for a swap instruction
-    const swapInstruction = new TransactionInstruction({
+    const swapInstruction = new (await import('@solana/web3.js')).TransactionInstruction({
       programId: this.programId,
       keys: [
-        { pubkey: walletAddress, isSigner: true, isWritable: true },
-        { pubkey: params.fromToken, isSigner: false, isWritable: true },
-        { pubkey: params.toToken, isSigner: false, isWritable: true },
+        { pubkey: new PublicKey(walletAddress), isSigner: true, isWritable: true },
+        { pubkey: new PublicKey(params.fromToken), isSigner: false, isWritable: true },
+        { pubkey: new PublicKey(params.toToken), isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       ],
       data: Buffer.from([]) // Add actual instruction data based on DEX protocol
@@ -66,36 +83,44 @@ export class DexService {
     return transaction;
   }
 
-  async executeSwap(
-    walletAddress: PublicKey,
-    params: SwapParams,
-    signTransaction: (transaction: Transaction) => Promise<Transaction>
-  ): Promise<SwapResult> {
+  async swapTokens(
+    tokenInAddress: string,
+    tokenOutAddress: string,
+    amount: Decimal,
+    slippage: Decimal,
+    walletAddress: string
+  ): Promise<{
+    amountIn: Decimal;
+    amountOut: Decimal;
+    priceImpact: Decimal;
+  }> {
     try {
-      // Create and sign the swap transaction
+      const params: SwapParams = {
+        fromToken: tokenInAddress,
+        toToken: tokenOutAddress,
+        amount,
+        slippage,
+      };
       const transaction = await this.createSwapTransaction(walletAddress, params);
-      const signedTransaction = await signTransaction(transaction);
+      const signedTransaction = await (async (transaction: any) => transaction)();
 
       // Send and confirm the transaction
       const signature = await this.connection.sendRawTransaction(signedTransaction.serialize());
       await this.connection.confirmTransaction(signature);
 
-      // Get the final amounts (this is simplified, you'll need to implement actual amount calculation)
-      const fromAmount = params.amount;
-      const toAmount = params.amount.mul(1); // Replace with actual price calculation
-      const price = new Decimal(1); // Replace with actual price
+      // Calculate the actual amounts
+      const fromAmount = amount;
+      const toAmount = amount.mul(new Decimal(1)); // Replace with actual price calculation
+      const priceImpact = new Decimal(0.01); // Replace with actual calculation
 
       return {
-        signature,
-        fromAmount,
-        toAmount,
-        price,
+        amountIn: fromAmount,
+        amountOut: toAmount,
+        priceImpact,
       };
     } catch (error) {
       console.error('Error executing swap:', error);
       throw error;
     }
   }
-
-  // Add more methods for other DEX operations as needed
 }
