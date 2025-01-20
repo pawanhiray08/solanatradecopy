@@ -1,35 +1,34 @@
 import { Connection, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import Decimal from 'decimal.js';
-type DecimalType = ReturnType<typeof Decimal['prototype']['constructor']>;
 
 export interface DexInterface {
-  getPrice(tokenAddress: string): Promise<DecimalType>;
-  getTokenBalance(tokenAddress: string, walletAddress: string): Promise<DecimalType>;
+  getPrice(tokenAddress: string): Promise<Decimal>;
+  getTokenBalance(tokenAddress: string, walletAddress: string): Promise<Decimal>;
   swapTokens(
     tokenInAddress: string,
     tokenOutAddress: string,
-    amount: DecimalType,
-    slippage: DecimalType,
+    amount: Decimal,
+    slippage: Decimal,
     walletAddress: string
   ): Promise<{
-    amountIn: DecimalType;
-    amountOut: DecimalType;
-    priceImpact: DecimalType;
+    amountIn: Decimal;
+    amountOut: Decimal;
+    priceImpact: Decimal;
   }>;
 }
 
 export interface SwapParams {
   fromToken: string;
   toToken: string;
-  amount: DecimalType;
-  slippage: DecimalType;
+  amount: Decimal;
+  slippage: Decimal;
 }
 
 export interface SwapResult {
-  fromAmount: DecimalType;
-  toAmount: DecimalType;
-  price: DecimalType;
+  fromAmount: Decimal;
+  toAmount: Decimal;
+  price: Decimal;
 }
 
 export class DexService implements DexInterface {
@@ -41,7 +40,7 @@ export class DexService implements DexInterface {
     this.programId = programId;
   }
 
-  async getTokenBalance(walletAddress: string, tokenMint: string): Promise<DecimalType> {
+  async getTokenBalance(walletAddress: string, tokenMint: string): Promise<Decimal> {
     try {
       const tokenAccount = await getAssociatedTokenAddress(
         new PublicKey(tokenMint),
@@ -56,7 +55,7 @@ export class DexService implements DexInterface {
     }
   }
 
-  async getPrice(tokenAddress: string): Promise<DecimalType> {
+  async getPrice(tokenAddress: string): Promise<Decimal> {
     try {
       // TODO: Implement actual price calculation using DEX liquidity pools
       // This is a placeholder that returns 1:1 price
@@ -78,13 +77,13 @@ export class DexService implements DexInterface {
   async swapTokens(
     tokenInAddress: string,
     tokenOutAddress: string,
-    amount: DecimalType,
-    slippage: DecimalType,
+    amount: Decimal,
+    slippage: Decimal,
     walletAddress: string
   ): Promise<{
-    amountIn: DecimalType;
-    amountOut: DecimalType;
-    priceImpact: DecimalType;
+    amountIn: Decimal;
+    amountOut: Decimal;
+    priceImpact: Decimal;
   }> {
     try {
       const params: SwapParams = {
@@ -99,7 +98,7 @@ export class DexService implements DexInterface {
       // For now, just simulate the swap with a simple calculation
       const amountIn = amount;
       const price = await this.getPrice(tokenOutAddress);
-      const amountOut = amount.times(price);
+      const amountOut = amount.mul(price);
       const priceImpact = new Decimal(0.01); // 1% impact for example
 
       return {

@@ -16,14 +16,23 @@ import { useMemo } from 'react';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 const WalletModalProviderDynamic = dynamic(
-  () => import('@solana/wallet-adapter-react-ui').then(mod => mod.WalletModalProvider),
+  async () => (await import('@solana/wallet-adapter-react-ui')).WalletModalProvider,
   { ssr: false }
 );
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const network = WalletAdapterNetwork.Testnet;
-  const endpoint = useMemo(() => process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl(network), [network]);
+  // You can change this to 'Devnet' | 'Testnet' | 'Mainnet' based on your needs
+  const network = WalletAdapterNetwork.Devnet;
   
+  // Use the provided RPC URL or fall back to the default one
+  const endpoint = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+    if (url) return url;
+    console.warn('No custom RPC URL provided, falling back to default', network);
+    return clusterApiUrl(network);
+  }, [network]);
+
+  // Initialize the wallet adapters
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
@@ -34,16 +43,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // Show error if no endpoint is available
   if (!endpoint) {
-    return <div className="text-center p-4">Error: No RPC endpoint available</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-4 bg-red-50 rounded-lg">
+          <h2 className="text-red-800 font-semibold">Configuration Error</h2>
+          <p className="text-red-600">No RPC endpoint available. Please check your environment configuration.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <ConnectionProvider endpoint={endpoint}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
-        <WalletModalProviderDynamic>
-          {children}
-        </WalletModalProviderDynamic>
+        <WalletModalProviderDynamic>{children}</WalletModalProviderDynamic>
       </SolanaWalletProvider>
     </ConnectionProvider>
   );

@@ -13,7 +13,13 @@ import { AdvancedTrading } from '@/components/AdvancedTrading';
 import { PortfolioAnalytics } from '@/components/PortfolioAnalytics';
 import { SocialTrading } from '@/components/SocialTrading';
 import { InsiderWalletManager } from '@/components/InsiderWalletManager';
+import { TradeManager } from '@/components/TradeManager';
+import { TradingDashboard } from '@/components/TradingDashboard';
 import TestConnection from '@/components/TestConnection';
+import { Chart, registerables } from 'chart.js';
+import 'chartjs-adapter-date-fns';
+
+Chart.register(...registerables);
 
 const WalletMultiButtonDynamic = dynamic(
   () => import('@solana/wallet-adapter-react-ui').then(mod => mod.WalletMultiButton),
@@ -23,8 +29,9 @@ const WalletMultiButtonDynamic = dynamic(
 export default function Home() {
   const { publicKey, connected } = useWallet();
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'trading' | 'portfolio' | 'social' | 'insiders'>('insiders');
+  const [activeTab, setActiveTab] = useState<'trading' | 'portfolio' | 'social' | 'insiders' | 'copyTrading'>('insiders');
   const [isLoading, setIsLoading] = useState(true);
+  let myChart;
 
   useEffect(() => {
     // Simulate loading delay for dynamic imports
@@ -32,101 +39,117 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  const tabs = [
-    { id: 'trading', label: 'Trading' },
-    { id: 'portfolio', label: 'Portfolio' },
-    { id: 'social', label: 'Social' },
-    { id: 'insiders', label: 'Insider Wallets' },
-  ];
+  function renderChart(data, ctx) {
+    if (myChart) {
+      myChart.destroy();
+    }
+    myChart = new Chart(ctx, {
+      type: 'line',
+      data: data,
+      options: {}
+    });
+  }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-8 bg-gray-50">
-      <TestConnection />
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">Solana Copy Trading</h1>
-            <p className="text-gray-600">Copy trade on Solana testnet</p>
-          </div>
+    <main className="flex min-h-screen flex-col items-center justify-between p-24">
+      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
+        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
+          Solana Copy Trading - Testnet
+        </p>
+        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
           <WalletMultiButtonDynamic />
         </div>
-
-        {!connected ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Connect Your Wallet</h2>
-            <p className="text-gray-600 mb-8">Please connect your wallet to access the trading features</p>
-            <WalletMultiButtonDynamic />
-          </div>
-        ) : (
-          <>
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-8">
-              <div className="border-b">
-                <nav className="flex space-x-8">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                        activeTab === tab.id
-                          ? 'border-indigo-500 text-indigo-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            </div>
-
-            <div className="space-y-8">
-              {activeTab === 'trading' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2">
-                    <PriceChart tokenAddress={selectedToken || ''} />
-                    <TradeExecutor onTokenSelect={setSelectedToken} />
-                  </div>
-                  <div>
-                    <TransactionDetails />
-                    <PositionTracker />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'portfolio' && (
-                <div className="space-y-8">
-                  <PortfolioAnalytics />
-                  <AdvancedTrading />
-                </div>
-              )}
-
-              {activeTab === 'social' && (
-                <div className="space-y-8">
-                  <SocialTrading />
-                  <UserSettings />
-                </div>
-              )}
-
-              {activeTab === 'insiders' && (
-                <div className="space-y-8">
-                  <InsiderWalletManager />
-                </div>
-              )}
-            </div>
-          </>
-        )}
       </div>
+
+      {!connected ? (
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-4">Connect your wallet to start trading</h2>
+          <p className="text-gray-600">You need to connect your Solana wallet to access the trading features.</p>
+        </div>
+      ) : (
+        <div className="w-full max-w-7xl mx-auto">
+          <div className="mb-8">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('insiders')}
+                  className={`${
+                    activeTab === 'insiders'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Insider Wallets
+                </button>
+                <button
+                  onClick={() => setActiveTab('copyTrading')}
+                  className={`${
+                    activeTab === 'copyTrading'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Copy Trading
+                </button>
+                <button
+                  onClick={() => setActiveTab('portfolio')}
+                  className={`${
+                    activeTab === 'portfolio'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Portfolio
+                </button>
+                <button
+                  onClick={() => setActiveTab('social')}
+                  className={`${
+                    activeTab === 'social'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Social
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            {activeTab === 'insiders' && (
+              <>
+                <InsiderWalletManager />
+                <InsiderWallets onSelectToken={setSelectedToken} />
+              </>
+            )}
+            {activeTab === 'copyTrading' && (
+              <>
+                <TradingDashboard />
+                <TradeManager />
+              </>
+            )}
+            {activeTab === 'portfolio' && (
+              <>
+                <PortfolioAnalytics />
+                <PositionTracker />
+              </>
+            )}
+            {activeTab === 'social' && (
+              <SocialTrading />
+            )}
+          </div>
+        </div>
+      )}
+
+      <TestConnection />
     </main>
   );
 }

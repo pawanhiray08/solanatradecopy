@@ -14,7 +14,9 @@ import {
   Tooltip,
   Legend,
   ArcElement,
+  TimeScale,
 } from 'chart.js';
+import 'chartjs-adapter-date-fns';
 import { Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
@@ -25,7 +27,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  TimeScale,
 );
 
 interface PortfolioMetrics {
@@ -253,6 +256,9 @@ export function PortfolioAnalytics() {
     return data;
   };
 
+  let valueChart;
+  let allocationChart;
+
   const valueChartData = {
     labels: historicalValue.map(d => d.date),
     datasets: [{
@@ -272,6 +278,15 @@ export function PortfolioAnalytics() {
       backgroundColor: allocation.map(a => a.color),
     }],
   };
+
+  useEffect(() => {
+    if (valueChart) {
+      valueChart.destroy();
+    }
+    if (allocationChart) {
+      allocationChart.destroy();
+    }
+  }, [historicalValue, allocation]);
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -326,6 +341,9 @@ export function PortfolioAnalytics() {
                   },
                 },
               }}
+              ref={(chart) => {
+                valueChart = chart;
+              }}
             />
           </div>
 
@@ -339,6 +357,9 @@ export function PortfolioAnalytics() {
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
+                  }}
+                  ref={(chart) => {
+                    allocationChart = chart;
                   }}
                 />
               </div>

@@ -2,11 +2,11 @@ import Decimal from 'decimal.js';
 
 export interface PriceData {
   timestamp: number;
-  open: typeof Decimal;
-  high: typeof Decimal;
-  low: typeof Decimal;
-  close: typeof Decimal;
-  volume: typeof Decimal;
+  open: Decimal;
+  high: Decimal;
+  low: Decimal;
+  close: Decimal;
+  volume: Decimal;
 }
 
 export class TechnicalAnalysis {
@@ -16,72 +16,79 @@ export class TechnicalAnalysis {
     this.data = data;
   }
 
-  static calculateSMA(prices: typeof Decimal[], period: number): typeof Decimal[] {
-    const sma: typeof Decimal[] = [];
-    for (let i = period - 1; i < prices.length; i++) {
+  static calculateSMA(prices: (number | Decimal)[], period: number): Decimal[] {
+    const decimalPrices = prices.map(price => price instanceof Decimal ? price : new Decimal(price));
+    const sma: Decimal[] = [];
+    for (let i = period - 1; i < decimalPrices.length; i++) {
       let sum = new Decimal(0);
       for (let j = 0; j < period; j++) {
-        sum = sum.plus(prices[i - j]);
+        sum = sum.plus(decimalPrices[i - j]);
       }
-      sma.push(sum.div(period));
+      sma.push(sum.div(new Decimal(period)));
     }
     return sma;
   }
 
-  static calculateEMA(prices: typeof Decimal[], period: number): typeof Decimal[] {
-    const ema: typeof Decimal[] = [];
+  static calculateEMA(prices: (number | Decimal)[], period: number): Decimal[] {
+    const decimalPrices = prices.map(price => price instanceof Decimal ? price : new Decimal(price));
+    const ema: Decimal[] = [];
     const multiplier = new Decimal(2).div(new Decimal(period + 1));
     
     // Start with SMA
-    const firstSMA = prices.slice(0, period).reduce((a, b) => a.plus(b), new Decimal(0)).div(period);
+    const firstSMA = decimalPrices.slice(0, period).reduce((a, b) => new Decimal(a).plus(b), new Decimal(0)).div(new Decimal(period));
     ema.push(firstSMA);
     
     // Calculate EMA
-    for (let i = period; i < prices.length; i++) {
-      const currentEMA = (prices[i].minus(ema[ema.length - 1])).mul(multiplier).plus(ema[ema.length - 1]);
+    for (let i = period; i < decimalPrices.length; i++) {
+      const currentPrice = decimalPrices[i];
+      const prevEMA = ema[ema.length - 1];
+      const currentEMA = currentPrice.minus(prevEMA).mul(multiplier).plus(prevEMA);
       ema.push(currentEMA);
     }
     
     return ema;
   }
 
-  static calculateRSI(prices: typeof Decimal[], period: number = 14): typeof Decimal[] {
-    const rsi: typeof Decimal[] = [];
-    let gains: typeof Decimal[] = [];
-    let losses: typeof Decimal[] = [];
+  static calculateRSI(prices: (number | Decimal)[], period: number = 14): Decimal[] {
+    const decimalPrices = prices.map(price => price instanceof Decimal ? price : new Decimal(price));
+    const rsi: Decimal[] = [];
+    let gains: Decimal[] = [];
+    let losses: Decimal[] = [];
     
     // Calculate price changes
-    for (let i = 1; i < prices.length; i++) {
-      const change = prices[i].minus(prices[i - 1]);
-      gains.push(change.gt(0) ? change : new Decimal(0));
-      losses.push(change.lt(0) ? change.abs() : new Decimal(0));
+    for (let i = 1; i < decimalPrices.length; i++) {
+      const current = decimalPrices[i];
+      const previous = decimalPrices[i - 1];
+      const change = current.minus(previous);
+      gains.push(change.gt(new Decimal(0)) ? change : new Decimal(0));
+      losses.push(change.lt(new Decimal(0)) ? change.abs() : new Decimal(0));
     }
     
     // Calculate initial averages
-    let avgGain = gains.slice(0, period).reduce((a, b) => a.plus(b), new Decimal(0)).div(period);
-    let avgLoss = losses.slice(0, period).reduce((a, b) => a.plus(b), new Decimal(0)).div(period);
+    let avgGain = gains.slice(0, period).reduce((a, b) => new Decimal(a).plus(b), new Decimal(0)).div(new Decimal(period));
+    let avgLoss = losses.slice(0, period).reduce((a, b) => new Decimal(a).plus(b), new Decimal(0)).div(new Decimal(period));
     
     // Calculate RSI values
-    for (let i = period; i < prices.length; i++) {
+    for (let i = period; i < decimalPrices.length; i++) {
       const rs = avgGain.div(avgLoss);
       rsi.push(new Decimal(100).minus(new Decimal(100).div(new Decimal(1).plus(rs))));
 
       // Update averages
-      avgGain = (avgGain.mul(period - 1).plus(gains[i])).div(period);
-      avgLoss = (avgLoss.mul(period - 1).plus(losses[i])).div(period);
+      avgGain = (avgGain.mul(new Decimal(period - 1)).plus(gains[i])).div(new Decimal(period));
+      avgLoss = (avgLoss.mul(new Decimal(period - 1)).plus(losses[i])).div(new Decimal(period));
     }
     
     return rsi;
   }
 
-  static calculateMACD(prices: typeof Decimal[]): {
-    macd: typeof Decimal[];
-    signal: typeof Decimal[];
-    histogram: typeof Decimal[];
+  static calculateMACD(prices: Decimal[], period: number = 26): {
+    macd: Decimal[];
+    signal: Decimal[];
+    histogram: Decimal[];
   } {
     const fastEMA = this.calculateEMA(prices, 12);
-    const slowEMA = this.calculateEMA(prices, 26);
-    const macd: typeof Decimal[] = [];
+    const slowEMA = this.calculateEMA(prices, period);
+    const macd: Decimal[] = [];
     
     // Calculate MACD line
     for (let i = 0; i < fastEMA.length; i++) {
@@ -97,17 +104,17 @@ export class TechnicalAnalysis {
     return { macd, signal, histogram };
   }
 
-  static calculateBollingerBands(prices: typeof Decimal[], period: number = 20, stdDev: number = 2): {
-    upper: typeof Decimal[];
-    middle: typeof Decimal[];
-    lower: typeof Decimal[];
+  static calculateBollingerBands(prices: Decimal[], period: number = 20, stdDev: number = 2): {
+    upper: Decimal[];
+    middle: Decimal[];
+    lower: Decimal[];
   } {
     const middle = this.calculateSMA(prices, period);
-    const upper: typeof Decimal[] = [];
-    const lower: typeof Decimal[] = [];
+    const upper: Decimal[] = [];
+    const lower: Decimal[] = [];
     
     for (let i = period - 1; i < prices.length; i++) {
-      const slice = prices.slice(i - period + 1, i + 1);
+      const slice = prices.slice(i - period + 1, i + 1).map(p => new Decimal(p));
       const avg = middle[i - (period - 1)];
       const std = Math.sqrt(
         slice.reduce((sum, price) => sum + Math.pow(price.minus(avg).toNumber(), 2), 0) / period
@@ -120,17 +127,18 @@ export class TechnicalAnalysis {
     return { upper, middle, lower };
   }
 
-  static calculateVolumeSMA(volumes: typeof Decimal[], period: number = 20): typeof Decimal[] {
+  static calculateVolumeSMA(volumes: Decimal[], period: number = 20): Decimal[] {
     return this.calculateSMA(volumes, period);
   }
 
-  static calculateOBV(prices: typeof Decimal[], volumes: typeof Decimal[]): typeof Decimal[] {
-    const obv: typeof Decimal[] = [new Decimal(0)];
+  static calculateOBV(prices: Decimal[], volumes: Decimal[]): Decimal[] {
+    const obv: Decimal[] = [new Decimal(0)];
     
     for (let i = 1; i < prices.length; i++) {
       const currentOBV = obv[i - 1].plus(
         prices[i].gt(prices[i - 1]) ? volumes[i] :
-        prices[i].lt(prices[i - 1]) ? volumes[i].neg() : new Decimal(0)
+        prices[i].lt(prices[i - 1]) ? volumes[i].mul(new Decimal(-1)) :
+        new Decimal(0)
       );
       obv.push(currentOBV);
     }
@@ -138,49 +146,60 @@ export class TechnicalAnalysis {
     return obv;
   }
 
-  static calculateFibonacciLevels(high: typeof Decimal, low: typeof Decimal): {
-    levels: { [key: string]: typeof Decimal };
-    extensions: { [key: string]: typeof Decimal };
+  static calculateFibonacciLevels(high: Decimal, low: Decimal): {
+    levels: { [key: string]: Decimal };
+    extensions: { [key: string]: Decimal };
   } {
     const diff = high.minus(low);
     
+    const levels = {
+      '0': low,
+      '0.236': low.plus(diff.mul(new Decimal('0.236'))),
+      '0.382': low.plus(diff.mul(new Decimal('0.382'))),
+      '0.5': low.plus(diff.mul(new Decimal('0.5'))),
+      '0.618': low.plus(diff.mul(new Decimal('0.618'))),
+      '0.786': low.plus(diff.mul(new Decimal('0.786'))),
+      '1': high
+    };
+    
+    const extensions = {
+      '1.272': low.plus(diff.mul(new Decimal('1.272'))),
+      '1.414': low.plus(diff.mul(new Decimal('1.414'))),
+      '1.618': low.plus(diff.mul(new Decimal('1.618'))),
+      '2.000': low.plus(diff.mul(new Decimal('2.000'))),
+      '2.414': low.plus(diff.mul(new Decimal('2.414'))),
+      '2.618': low.plus(diff.mul(new Decimal('2.618')))
+    };
+    
     return {
-      levels: {
-        '0': low,
-        '0.236': low.plus(diff.mul(new Decimal(0.236))),
-        '0.382': low.plus(diff.mul(new Decimal(0.382))),
-        '0.5': low.plus(diff.mul(new Decimal(0.5))),
-        '0.618': low.plus(diff.mul(new Decimal(0.618))),
-        '0.786': low.plus(diff.mul(new Decimal(0.786))),
-        '1': high,
-      },
-      extensions: {
-        '1.272': low.plus(diff.mul(new Decimal(1.272))),
-        '1.618': low.plus(diff.mul(new Decimal(1.618))),
-        '2.618': low.plus(diff.mul(new Decimal(2.618))),
-      },
+      levels,
+      extensions
     };
   }
 
-  static calculatePivotPoints(high: typeof Decimal, low: typeof Decimal, close: typeof Decimal): {
-    pivot: typeof Decimal;
-    supports: typeof Decimal[];
-    resistances: typeof Decimal[];
+  static calculatePivotPoints(high: Decimal, low: Decimal, close: Decimal): {
+    pivot: Decimal;
+    supports: Decimal[];
+    resistances: Decimal[];
   } {
-    const pivot = (high.plus(low).plus(close)).div(new Decimal(3));
+    const pivot = high.plus(low).plus(close).div(new Decimal(3));
+    
+    const supports = [
+      pivot.mul(new Decimal(2)).minus(high),
+      pivot.minus(high.minus(low)),
+      pivot.mul(new Decimal(2)).minus(high).minus(high.minus(low))
+    ];
+    
+    const resistances = [
+      pivot.mul(new Decimal(2)).minus(low),
+      pivot.plus(high.minus(low)),
+      pivot.mul(new Decimal(2)).minus(low).plus(high.minus(low))
+    ];
     
     return {
       pivot,
-      supports: [
-        pivot.mul(new Decimal(2)).minus(high),                    // S1
-        pivot.minus(high.minus(low)),                // S2
-        pivot.minus(high.minus(low).mul(new Decimal(2))),            // S3
-      ],
-      resistances: [
-        pivot.mul(new Decimal(2)).minus(low),                     // R1
-        pivot.plus(high.minus(low)),                // R2
-        pivot.plus(high.minus(low).mul(new Decimal(2))),            // R3
-      ],
+      supports,
+      resistances
     };
   }
 }

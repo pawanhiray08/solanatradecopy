@@ -13,10 +13,10 @@ const INSIDER_WALLETS = [
 ];
 
 interface InsiderWalletsProps {
-  onTokenSelect?: (tokenAddress: string) => void;
+  onSelectToken: (tokenAddress: string | null) => void;
 }
 
-export function InsiderWallets({ onTokenSelect }: InsiderWalletsProps) {
+export function InsiderWallets({ onSelectToken }: InsiderWalletsProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [loading, setLoading] = useState(false);
@@ -115,7 +115,7 @@ export function InsiderWallets({ onTokenSelect }: InsiderWalletsProps) {
             <div
               key={tx.signature}
               className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
-              onClick={() => onTokenSelect?.(tx.token_address)}
+              onClick={() => onSelectToken?.(tx.token_address)}
             >
               <div className="font-medium">Wallet: {tx.wallet.slice(0, 4)}...{tx.wallet.slice(-4)}</div>
               <div className="text-sm">

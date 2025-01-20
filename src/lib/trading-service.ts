@@ -28,6 +28,9 @@ export class TradingService {
     this.dexService = dexService;
     this.userWallet = userWallet;
     this.settings = settings;
+
+    // Verify API endpoints and check for necessary tables in the Supabase database
+    this.verifyApiEndpoints();
   }
 
   async handleInsiderTransaction(transaction: ParsedTransactionWithMeta, insiderWallet: string) {
@@ -59,9 +62,9 @@ export class TradingService {
         // Parse the instruction data to get swap details
         // This is simplified, you'll need to implement actual parsing logic
         return {
-          fromToken: new PublicKey("...").toString(), // Extract from instruction
-          toToken: new PublicKey("...").toString(),   // Extract from instruction
-          amount: new Decimal(0),          // Extract from instruction
+          fromToken: instruction.keys[0].pubkey.toString(), // Extract from instruction
+          toToken: instruction.keys[1].pubkey.toString(),   // Extract from instruction
+          amount: new Decimal(instruction.data.toString('hex', 8, 16)),          // Extract from instruction
           slippage: new Decimal(0),           // Calculate from amounts
         };
       }
@@ -119,7 +122,7 @@ export class TradingService {
       // Check if we have enough balance
       const balance = await this.dexService.getTokenBalance(
         this.userWallet.toString(),
-        swapParams.fromToken
+        swapParams.fromToken.toString()
       );
 
       if (balance.lessThan(tradeSize)) {
@@ -129,8 +132,8 @@ export class TradingService {
 
       // Execute the swap
       const result = await this.dexService.swapTokens(
-        swapParams.fromToken,
-        swapParams.toToken,
+        swapParams.fromToken.toString(),
+        swapParams.toToken.toString(),
         swapParams.amount,
         swapParams.slippage,
         this.userWallet.toString()
@@ -149,6 +152,36 @@ export class TradingService {
     
     // Use the smaller of insider's trade size or our max size, but not less than min size
     return Decimal.max(Decimal.min(insiderAmount, maxSize), minSize);
+  }
+
+  private async verifyApiEndpoints() {
+    try {
+      // Verify API endpoints and check for necessary tables in the Supabase database
+      const endpoints = [
+        '/rest/v1/traders',
+        '/rest/v1/trader_follows',
+        '/rest/v1/trades',
+        '/rest/v1/positions',
+      ];
+
+      for (const endpoint of endpoints) {
+        const response = await supabase.from(endpoint).select('id');
+        if (response.error) {
+          console.error(`Error verifying API endpoint ${endpoint}:`, response.error);
+        }
+      }
+
+      // Check for necessary tables in the Supabase database
+      const tables = ['transactions'];
+      for (const table of tables) {
+        const response = await supabase.from(table).select('id');
+        if (response.error) {
+          console.error(`Error verifying table ${table}:`, response.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error verifying API endpoints:', error);
+    }
   }
 
   updateSettings(newSettings: TradeSettings) {

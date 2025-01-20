@@ -43,22 +43,26 @@ export interface PoolInfo {
     swapFeeNumerator: number;
     swapFeeDenominator: number;
   };
+  baseReserve: Decimal;
+  quoteReserve: Decimal;
 }
 
-export interface RaydiumPool {
-  address: string;
-  baseMint: string;
-  quoteMint: string;
-  baseDecimals: number;
-  quoteDecimals: number;
-  baseReserve: typeof Decimal;
-  quoteReserve: typeof Decimal;
+export class RaydiumPool {
+  constructor(
+    public address: string,
+    public baseMint: string,
+    public quoteMint: string,
+    public baseDecimals: number,
+    public quoteDecimals: number,
+    public baseReserve: Decimal,
+    public quoteReserve: Decimal
+  ) {}
 }
 
 export interface SwapResult {
-  amountIn: typeof Decimal;
-  amountOut: typeof Decimal;
-  priceImpact: typeof Decimal;
+  amountIn: Decimal;
+  amountOut: Decimal;
+  priceImpact: Decimal;
 }
 
 export class RaydiumService {
@@ -75,46 +79,46 @@ export class RaydiumService {
     slippage: Decimal
   ): Promise<Transaction | null> {
     try {
-      // Find the best pool for the token pair
       const pool = await this.findBestPool(tokenIn, tokenOut);
       if (!pool) {
-        throw new Error('No pool found for token pair');
+        console.error('No pool found for the token pair');
+        return null;
       }
 
-      // Calculate the expected output amount
-      const amountOut = await this.calculateAmountOut(pool, amountIn, slippage);
-      
-      // Create the swap instruction
+      const minimumAmountOut = await this.calculateMinimumAmountOut(
+        amountIn.toNumber(),
+        slippage,
+        pool.fees
+      );
+
       const instruction = await this.createSwapInstruction(
         pool,
         tokenIn,
         tokenOut,
         amountIn.toNumber(),
-        amountOut.toNumber()
+        minimumAmountOut.toNumber()
       );
 
       if (!instruction) {
-        throw new Error('Failed to create swap instruction');
+        return null;
       }
 
-      // Create and return the transaction
       const transaction = new Transaction().add(instruction);
       return transaction;
-
     } catch (error) {
       console.error('Error creating swap transaction:', error);
       return null;
     }
   }
 
-  private calculateMinimumAmountOut(
+  private async calculateMinimumAmountOut(
     amountIn: number,
-    slippage: typeof Decimal,
+    slippage: Decimal,
     fees: PoolInfo['fees']
-  ): Promise<typeof Decimal> {
-    const feePct = new Decimal(fees.swapFeeNumerator).div(fees.swapFeeDenominator);
-    const afterFees = new Decimal(amountIn).times(new Decimal(1).minus(feePct));
-    return afterFees.times(new Decimal(1).minus(slippage));
+  ): Promise<Decimal> {
+    const feePct = new Decimal(fees.swapFeeNumerator).div(new Decimal(fees.swapFeeDenominator));
+    const afterFees = new Decimal(amountIn).mul(new Decimal(1).sub(feePct));
+    return afterFees.mul(new Decimal(1).sub(slippage));
   }
 
   private async createSwapInstruction(
@@ -159,38 +163,22 @@ export class RaydiumService {
   }
 
   async getPrice(pool: PoolInfo): Promise<Decimal> {
-    // Convert PoolInfo to RaydiumPool
-    const raydiumPool: RaydiumPool = {
-      address: pool.id,
-      baseMint: pool.baseMint,
-      quoteMint: pool.quoteMint,
-      baseDecimals: pool.baseDecimals,
-      quoteDecimals: pool.quoteDecimals,
-      baseReserve: new Decimal(0),
-      quoteReserve: new Decimal(0)
-    };
-    
-    // Get the reserves
-    const baseVault = new PublicKey(pool.baseVault);
-    const quoteVault = new PublicKey(pool.quoteVault);
-    
-    const [baseBalance, quoteBalance] = await Promise.all([
-      this.connection.getTokenAccountBalance(baseVault),
-      this.connection.getTokenAccountBalance(quoteVault)
-    ]);
-    
-    raydiumPool.baseReserve = new Decimal(baseBalance.value.amount);
-    raydiumPool.quoteReserve = new Decimal(quoteBalance.value.amount);
-    
-    return raydiumPool.quoteReserve.div(raydiumPool.baseReserve);
+    const baseReserve = pool.baseReserve;
+    const quoteReserve = pool.quoteReserve;
+    return quoteReserve.div(baseReserve);
   }
 
   async calculateAmountOut(
     pool: PoolInfo,
-    amountIn: typeof Decimal,
-    slippage: typeof Decimal
-  ): Promise<typeof Decimal> {
+    amountIn: Decimal,
+    slippage: Decimal
+  ): Promise<Decimal> {
     const price = await this.getPrice(pool);
-    return amountIn.times(price);
+    const amountOut = amountIn.mul(price);
+    const k = pool.baseDecimals === 6 ? new Decimal(1000000) : new Decimal(1000000000);
+    const kTimesAmountOut = k.mul(amountOut);
+    const kTimesAmountIn = k.mul(amountIn);
+    const priceImpact = new Decimal(1).sub(amountOut.div(amountIn.mul(price)));
+    return amountOut;
   }
 }

@@ -38,6 +38,7 @@ export type InsiderWallet = {
   last_trade_at: string | null;
   created_at: string;
   updated_at: string;
+  balance: number;
 };
 
 export type Transaction = {
@@ -52,9 +53,10 @@ export type Transaction = {
   profit_loss: number | null;
   timestamp: string;
   created_at: string;
+  success: boolean;
 };
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
       trades: {
@@ -84,4 +86,4 @@ export type Database = {
       };
     };
   };
-};
+}

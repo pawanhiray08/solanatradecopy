@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "JSON schema for the TypeScript compiler's configuration file",
+  "type": "object",
+  "properties": {
+    "compilerOptions": {
+      "type": "object",
+      "description": "Instructs the TypeScript compiler how to compile .ts files.",
+      "properties": {
+        "target": {
+          "description": "Specify ECMAScript target version.",
+          "type": "string",
+          "enum": ["es3", "es5", "es6", "es2015", "es2016", "es2017", "es2018", "es2019", "es2020", "es2021", "es2022", "esnext"]
+        }
+      }
+    },
+    "include": {
+      "type": "array",
+      "description": "Files to be included in compilation.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude": {
+      "type": "array",
+      "description": "Files to be excluded from compilation.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,7 +1,3 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,8 +8,12 @@ import {
   Tooltip,
   Legend,
   TimeScale,
+  ChartOptions,
 } from 'chart.js';
-import 'chartjs-adapter-date-fns';
+import { adapters } from 'chartjs-adapter-date-fns';
+import { Line } from 'react-chartjs-2';
+import { useRef, useEffect, useState } from 'react';
+import { supabase } from '../supabaseClient'; // Adjust the import based on your project structure
 
 ChartJS.register(
   CategoryScale,
@@ -23,7 +23,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  TimeScale
+  TimeScale,
+  adapters
 );
 
 interface PriceData {
@@ -32,131 +33,150 @@ interface PriceData {
 }
 
 interface TokenInfo {
+  name: string;
   symbol: string;
-  address: string;
+  decimals: number;
 }
 
 export function PriceChart({ tokenAddress }: { tokenAddress: string }) {
   const [priceHistory, setPriceHistory] = useState<PriceData[]>([]);
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [timeframe, setTimeframe] = useState<'1H' | '24H' | '7D' | '30D'>('24H');
+  const chartRef = useRef<ChartJS | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (tokenAddress) {
-      fetchTokenInfo();
-      fetchPriceHistory();
-    }
-  }, [tokenAddress, timeframe]);
+    fetchInsiderWallets(); // Fetch insider wallets on component mount
+  }, []);
 
-  async function fetchTokenInfo() {
+  const fetchInsiderWallets = async () => {
     try {
-      // Fetch token info from Jupiter or other API
-      const response = await fetch(`https://api.jupiter.so/token/${tokenAddress}`);
-      const data = await response.json();
-      setTokenInfo(data);
-    } catch (error) {
-      console.error('Error fetching token info:', error);
+      const { data, error } = await supabase
+        .from('insider_wallets')
+        .select('address, label, win_rate, total_profit_loss, rank')
+        .order('rank', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching insider wallets:', error.message);
+        return;
+      }
+
+      console.log('Insider Wallets:', data);
+      // Process the data as needed
+    } catch (err) {
+      console.error('Unexpected error:', err);
     }
-  }
+  };
 
-  async function fetchPriceHistory() {
+  const fetchPriceHistory = async (address: string, period: string) => {
     try {
-      // Calculate time range based on timeframe
-      const now = Date.now();
-      const timeRanges = {
-        '1H': now - 3600000,
-        '24H': now - 86400000,
-        '7D': now - 604800000,
-        '30D': now - 2592000000,
-      };
-      const startTime = timeRanges[timeframe];
-
-      // Fetch price history from Jupiter or other API
-      const response = await fetch(
-        `https://api.jupiter.so/price/history/${tokenAddress}?start=${startTime}&end=${now}`
-      );
-      const data = await response.json();
-      setPriceHistory(data);
+      // Fetch implementation
     } catch (error) {
       console.error('Error fetching price history:', error);
     }
-  }
+  };
+
+  const fetchTokenInfo = async (address: string) => {
+    try {
+      // Fetch implementation
+    } catch (error) {
+      console.error('Error fetching token info:', error);
+    }
+  };
 
   const chartData = {
+    labels: priceHistory.map(d => new Date(d.timestamp * 1000)),
     datasets: [
       {
-        label: tokenInfo?.symbol || 'Token Price',
-        data: priceHistory.map(point => ({
-          x: point.timestamp,
-          y: point.price,
-        })),
+        label: tokenInfo?.symbol || 'Price',
+        data: priceHistory.map(d => d.price),
         borderColor: 'rgb(75, 192, 192)',
         tension: 0.1,
       },
     ],
   };
 
-  const options = {
+  const options: ChartOptions<'line'> = {
     responsive: true,
-    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: `${tokenInfo?.name || 'Token'} Price Chart`,
+      },
+    },
     scales: {
       x: {
-        type: 'time' as const,
+        type: 'time',
         time: {
-          unit: timeframe === '1H' ? 'minute' as const : 
-                timeframe === '24H' ? 'hour' as const : 
-                'day' as const,
-        },
-        title: {
-          display: true,
-          text: 'Time',
+          unit: 'hour',
         },
       },
       y: {
-        title: {
-          display: true,
-          text: 'Price (USD)',
-        },
-      },
-    },
-    plugins: {
-      legend: {
-        display: true,
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            return `$${context.parsed.y.toFixed(6)}`;
-          },
-        },
+        beginAtZero: false,
       },
     },
   };
 
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.destroy();
+    }
+
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx) {
+      const newChart = new ChartJS(ctx, {
+        type: 'line',
+        data: chartData,
+        options: options,
+      });
+      chartRef.current = newChart;
+    }
+  }, [chartData, options]);
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">
-          {tokenInfo?.symbol || 'Token'} Price Chart
-        </h2>
+        <h2 className="text-xl font-semibold">Price Chart</h2>
         <div className="flex space-x-2">
-          {(['1H', '24H', '7D', '30D'] as const).map(tf => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1 rounded ${
-                timeframe === tf
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
+          <button
+            className={`px-3 py-1 rounded ${
+              timeframe === '1H' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+            }`}
+            onClick={() => setTimeframe('1H')}
+          >
+            1H
+          </button>
+          <button
+            className={`px-3 py-1 rounded ${
+              timeframe === '24H' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+            }`}
+            onClick={() => setTimeframe('24H')}
+          >
+            24H
+          </button>
+          <button
+            className={`px-3 py-1 rounded ${
+              timeframe === '7D' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+            }`}
+            onClick={() => setTimeframe('7D')}
+          >
+            7D
+          </button>
+          <button
+            className={`px-3 py-1 rounded ${
+              timeframe === '30D' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+            }`}
+            onClick={() => setTimeframe('30D')}
+          >
+            30D
+          </button>
         </div>
       </div>
       <div className="h-80">
-        <Line data={chartData} options={options} />
+        <canvas ref={canvasRef}></canvas>
       </div>
     </div>
   );
