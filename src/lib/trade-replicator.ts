@@ -161,7 +161,7 @@ export class TradeReplicator {
         // Check stop loss
         if (config.stopLoss) {
           const stopLossPrice = new Decimal(config.stopLoss);
-          if (currentPrice.lessThanOrEqualTo(stopLossPrice)) {
+          if (currentPrice.lte(stopLossPrice)) {
             console.log(`Stop loss triggered for ${config.symbol}`);
             await this.replicateTrade({
               type: 'sell',
@@ -178,7 +178,7 @@ export class TradeReplicator {
         // Check take profit
         if (config.takeProfit) {
           const takeProfitPrice = new Decimal(config.takeProfit);
-          if (currentPrice.greaterThanOrEqualTo(takeProfitPrice)) {
+          if (currentPrice.gte(takeProfitPrice)) {
             console.log(`Take profit triggered for ${config.symbol}`);
             await this.replicateTrade({
               type: 'sell',
