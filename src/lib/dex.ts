@@ -209,15 +209,15 @@ export class DexService implements DexInterface {
       for (const instruction of programInvocations) {
         // Check if this is a token swap instruction
         const isSwap = instruction.instructions.some(ix => 
-          ix.program === 'spl-token' && 
-          ['transfer', 'transferChecked'].includes(ix.parsed?.type || '')
+          'programId' in ix && ix.programId.equals(TOKEN_PROGRAM_ID) && 
+          ix.parsed?.type && ['transfer', 'transferChecked'].includes(ix.parsed.type)
         );
 
         if (isSwap) {
           // Extract token addresses and amounts from the instruction
           const transfers = instruction.instructions.filter(ix => 
-            ix.program === 'spl-token' && 
-            ['transfer', 'transferChecked'].includes(ix.parsed?.type || '')
+            'programId' in ix && ix.programId.equals(TOKEN_PROGRAM_ID) && 
+            ix.parsed?.type && ['transfer', 'transferChecked'].includes(ix.parsed.type)
           );
 
           if (transfers.length >= 2) {
