@@ -3,11 +3,33 @@
 import { useState, Dispatch, SetStateAction } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 
 interface TradeExecutorProps {
   onTokenSelect: Dispatch<SetStateAction<string | null>>;
 }
+
+const getConnection = async () => {
+  const primaryRpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+  const backupRpc = process.env.NEXT_PUBLIC_SOLANA_BACKUP_RPC_URL;
+  
+  try {
+    const connection = new Connection(primaryRpc!, 'confirmed');
+    await connection.getVersion(); // Test the connection
+    return connection;
+  } catch (error) {
+    console.warn('Primary RPC failed, falling back to backup:', error);
+    if (!backupRpc) throw new Error('No backup RPC configured');
+    
+    const backupConnection = new Connection(backupRpc, 'confirmed');
+    try {
+      await backupConnection.getVersion();
+      return backupConnection;
+    } catch (backupError) {
+      throw new Error('All RPC endpoints failed');
+    }
+  }
+};
 
 export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
   const { publicKey, signTransaction } = useWallet();
@@ -22,19 +44,37 @@ export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
     amount: number
   ) {
     if (!publicKey || !signTransaction) {
-      console.error('Wallet not connected');
-      return;
+      throw new Error('Wallet not connected');
     }
 
-    try {
-      const connection = new Connection(
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.testnet.solana.com',
-        'confirmed'
-      );
+    // Get connection with failover support
+    const connection = await getConnection();
 
-      // This is a placeholder for actual DEX integration
-      // You'll need to implement the specific DEX's swap logic here
+    try {
+      // Check SOL balance first
+      const balance = await connection.getBalance(publicKey);
+      const minimumBalance = 0.05 * 1e9; // 0.05 SOL for fees
+      if (balance < minimumBalance) {
+        throw new Error(`Insufficient SOL balance. Minimum required: 0.05 SOL for fees. Current balance: ${balance / 1e9} SOL`);
+      }
+
+      // Check token balance if swapping tokens
+      const tokenBalance = await connection.getTokenAccountBalance(
+        await getAssociatedTokenAddress(tokenInMint, publicKey)
+      ).catch(() => null);
+
+      if (!tokenBalance) {
+        throw new Error('Token account not found. Please check if you have the token in your wallet.');
+      }
+
+      if (Number(tokenBalance.value.amount) < amount) {
+        throw new Error(`Insufficient token balance. Required: ${amount}, Available: ${tokenBalance.value.uiAmount}`);
+      }
+
+      // Create and prepare transaction
       const transaction = new Transaction();
+      transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      transaction.feePayer = publicKey;
       
       // Add your swap instruction here based on the DEX you're using
       // For example, with Raydium:
@@ -44,11 +84,23 @@ export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
       // Sign and send transaction
       const signedTx = await signTransaction(transaction);
       const signature = await connection.sendRawTransaction(signedTx.serialize());
-      await connection.confirmTransaction(signature);
+      
+      // Wait for confirmation with specific commitment
+      const confirmation = await connection.confirmTransaction({
+        signature,
+        blockhash: transaction.recentBlockhash,
+        lastValidBlockHeight: (await connection.getLatestBlockhash()).lastValidBlockHeight
+      }, 'confirmed');
 
-      console.log('Swap executed:', signature);
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+      }
+
+      console.log('Swap executed successfully:', signature);
+      return signature;
     } catch (error) {
       console.error('Error executing swap:', error);
+      throw error;
     }
   }
 
