@@ -197,4 +197,94 @@ export class WalletMonitor {
       console.error('Error in storeTrade:', error);
     }
   }
+
+  private async setupWalletSubscription(walletAddress: string) {
+    const publicKey = new PublicKey(walletAddress);
+    const subscriptionId = this.connection.onLogs(
+      publicKey,
+      async (logs) => {
+        console.log(`New transaction detected for wallet ${walletAddress}:`, logs);
+        await this.processTransaction(logs.signature, walletAddress);
+      },
+      'confirmed'
+    );
+    return subscriptionId;
+  }
+
+  async getWalletBalance(walletAddress: string): Promise<number> {
+    try {
+      const publicKey = new PublicKey(walletAddress);
+      const balance = await this.connection.getBalance(publicKey);
+      const balanceInSol = balance / 1e9; // Convert lamports to SOL
+      
+      // Store balance in analytics
+      await this.updateWalletStats(walletAddress, { balance: balanceInSol });
+      
+      return balanceInSol;
+    } catch (error) {
+      console.error(`Error fetching balance for wallet ${walletAddress}:`, error);
+      throw error;
+    }
+  }
+
+  private async processTransaction(signature: string, walletAddress: string) {
+    try {
+      const transaction = await this.connection.getParsedTransaction(signature, 'confirmed');
+      if (!transaction) return;
+
+      // Store transaction in database for analytics
+      await supabase.from('wallet_transactions').insert({
+        wallet_address: walletAddress,
+        signature,
+        timestamp: new Date().toISOString(),
+        transaction_data: transaction,
+      });
+
+      // Analyze transaction for trade replication
+      const dexInstruction = await this.dexService.parseTradeInstruction(transaction);
+      if (dexInstruction) {
+        const tradeInstruction = this.convertDexTradeInstruction(dexInstruction, signature);
+        await this.tradeReplicator.replicateTrade(tradeInstruction);
+      }
+    } catch (error) {
+      console.error(`Error processing transaction ${signature}:`, error);
+    }
+  }
+
+  private convertDexTradeInstruction(
+    dexInstruction: import('./dex').TradeInstruction,
+    signature: string
+  ): import('./types').TradeInstruction {
+    const walletAddress = this.trackedWallets.keys().next().value;
+    if (!walletAddress) {
+      throw new Error('No tracked wallet found');
+    }
+
+    return {
+      type: dexInstruction.type as 'buy' | 'sell',
+      tokenAddress: dexInstruction.toToken, // Using toToken as the primary token
+      amount: Number(dexInstruction.amount),
+      price: 0, // You'll need to get this from DexService
+      walletAddress,
+      signature,
+      timestamp: Date.now()
+    };
+  }
+
+  private async updateWalletStats(walletAddress: string, stats: Partial<{
+    balance: number;
+    total_trades: number;
+    winning_trades: number;
+    total_profit_loss: number;
+  }>) {
+    try {
+      await supabase.from('wallet_stats').upsert({
+        wallet_address: walletAddress,
+        ...stats,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error(`Error updating wallet stats for ${walletAddress}:`, error);
+    }
+  }
 }

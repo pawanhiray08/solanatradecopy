@@ -140,6 +140,47 @@ CREATE TABLE IF NOT EXISTS public.portfolio_holdings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create wallet_transactions table
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id BIGSERIAL PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    signature TEXT UNIQUE NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    transaction_data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_wallet
+        FOREIGN KEY(wallet_address) 
+        REFERENCES tracked_wallets(wallet_address)
+        ON DELETE CASCADE
+);
+
+-- Create wallet_stats table
+CREATE TABLE IF NOT EXISTS wallet_stats (
+    wallet_address TEXT PRIMARY KEY,
+    balance DECIMAL,
+    total_trades INTEGER DEFAULT 0,
+    winning_trades INTEGER DEFAULT 0,
+    total_profit_loss DECIMAL DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_wallet
+        FOREIGN KEY(wallet_address) 
+        REFERENCES tracked_wallets(wallet_address)
+        ON DELETE CASCADE
+);
+
+-- Create portfolio_snapshots table
+CREATE TABLE IF NOT EXISTS portfolio_snapshots_new (
+    id BIGSERIAL PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    total_value_sol DECIMAL NOT NULL,
+    snapshot_data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_wallet
+        FOREIGN KEY(wallet_address) 
+        REFERENCES tracked_wallets(wallet_address)
+        ON DELETE CASCADE
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_trades_user_id ON public.trades(user_id);
 CREATE INDEX IF NOT EXISTS idx_trades_wallet_address ON public.trades(wallet_address);
@@ -148,6 +189,9 @@ CREATE INDEX IF NOT EXISTS idx_wallet_performance_win_rate ON public.wallet_perf
 CREATE INDEX IF NOT EXISTS idx_token_risk_metrics_risk_level ON public.token_risk_metrics(risk_level);
 CREATE INDEX IF NOT EXISTS idx_coordinated_trades_trade_time ON public.coordinated_trades(trade_time);
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user_id_time ON public.portfolio_snapshots(user_id, snapshot_time);
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_wallet ON wallet_transactions(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_timestamp ON wallet_transactions(timestamp);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_wallet_timestamp ON portfolio_snapshots_new(wallet_address, created_at);
 
 -- Create functions
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
@@ -296,6 +340,9 @@ ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_holdings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wallet_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wallet_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portfolio_snapshots_new ENABLE ROW LEVEL SECURITY;
 
 -- Create policies
 CREATE POLICY "Users can view their own data"
@@ -329,3 +376,33 @@ CREATE POLICY "Users can view their own portfolio holdings"
         WHERE ps.id = portfolio_holdings.snapshot_id
         AND abs(hashtext(auth.uid()::text))::BIGINT = ps.user_id
     ));
+
+CREATE POLICY "Enable read access for authenticated users" ON wallet_transactions
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON wallet_stats
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON portfolio_snapshots_new
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Enable insert for service role only" ON wallet_transactions
+    FOR INSERT
+    TO service_role
+    WITH CHECK (true);
+
+CREATE POLICY "Enable insert for service role only" ON wallet_stats
+    FOR INSERT
+    TO service_role
+    WITH CHECK (true);
+
+CREATE POLICY "Enable insert for service role only" ON portfolio_snapshots_new
+    FOR INSERT
+    TO service_role
+    WITH CHECK (true);

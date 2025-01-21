@@ -35,6 +35,13 @@ export interface SwapResult {
   price: Decimal;
 }
 
+export interface TradeInstruction {
+  fromToken: string;
+  toToken: string;
+  amount: string;
+  type: string;
+}
+
 export class DexService implements DexInterface {
   private connection: Connection;
   private programId: PublicKey;
@@ -188,6 +195,44 @@ export class DexService implements DexInterface {
       return null;
     } catch (error) {
       console.error('Error decoding swap transaction:', error);
+      return null;
+    }
+  }
+
+  // Parse trade instruction from a transaction
+  async parseTradeInstruction(transaction: ParsedTransactionWithMeta): Promise<TradeInstruction | null> {
+    try {
+      // Extract program invocations from the transaction
+      const programInvocations = transaction.meta?.innerInstructions || [];
+      
+      // Look for token swaps/trades
+      for (const instruction of programInvocations) {
+        // Check if this is a token swap instruction
+        const isSwap = instruction.instructions.some(ix => 
+          ix.program === 'spl-token' && 
+          ['transfer', 'transferChecked'].includes(ix.parsed?.type || '')
+        );
+
+        if (isSwap) {
+          // Extract token addresses and amounts from the instruction
+          const transfers = instruction.instructions.filter(ix => 
+            ix.program === 'spl-token' && 
+            ['transfer', 'transferChecked'].includes(ix.parsed?.type || '')
+          );
+
+          if (transfers.length >= 2) {
+            return {
+              fromToken: transfers[0].parsed.source,
+              toToken: transfers[1].parsed.destination,
+              amount: transfers[0].parsed.amount,
+              type: 'swap'
+            };
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error parsing trade instruction:', error);
       return null;
     }
   }
