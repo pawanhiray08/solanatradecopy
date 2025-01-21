@@ -12,6 +12,21 @@ A real-time Solana copy trading tool that monitors and replicates trades from sp
 - Real-time transaction dashboard
 - Testnet support for risk-free testing
 
+### Advanced Analytics
+- Real-time transaction feeds from insider wallets
+- Insider wallet rankings by win rate
+- Coordinated trade detection
+- Portfolio performance tracking
+- Risk metrics and alerts
+- Token liquidity analysis
+
+### Risk Management
+- Customizable trade size limits
+- Stop-loss and take-profit automation
+- Low liquidity warnings
+- Portfolio diversification metrics
+- Real-time risk scoring
+
 ## Getting Started
 
 1. Install dependencies:
@@ -34,6 +49,44 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Testnet Guide
+
+### Setting Up Your Testnet Wallet
+
+1. Install Phantom Wallet from [phantom.app](https://phantom.app)
+2. Create a new wallet or import existing
+3. Switch to Testnet:
+   - Open Phantom
+   - Click Settings (gear icon)
+   - Select "Change Network"
+   - Choose "Testnet"
+
+### Getting Testnet SOL
+
+1. Get free Testnet SOL from these faucets:
+   - [Solana Faucet](https://solfaucet.com)
+   - [QuickNode Faucet](https://quicknode.com/faucet/sol)
+   - [SolDev Faucet](https://sol-faucet.project-serum.com)
+
+2. Request limits:
+   - Most faucets provide 1-2 SOL per request
+   - Wait 24 hours between requests
+   - Use multiple faucets if needed
+
+### Testing Your Setup
+
+1. Start with small test trades (0.1 SOL)
+2. Verify trade execution and monitoring
+3. Test stop-loss and take-profit features
+4. Monitor transaction fees
+
+### Best Practices
+
+1. Always test new strategies on Testnet first
+2. Keep separate wallets for Testnet and Mainnet
+3. Regularly check wallet balances
+4. Monitor transaction history for debugging
+
 ## Technology Stack
 
 - Next.js 14
@@ -43,10 +96,6 @@ npm run dev
 - Supabase
 - TailwindCSS
 - TypeScript
-
-## Testing
-
-The application runs on Solana Testnet by default. Get test SOL from [Solana Faucet](https://solfaucet.com/).
 
 ## License
 

@@ -18,15 +18,32 @@ export type Wallet = {
   updated_at: string;
 };
 
+export type TradeSettings = {
+  maxTradeSize: number;
+  minTradeSize: number;
+  stopLossPercentage: number;
+  takeProfitPercentage: number;
+  autoTradingEnabled: boolean;
+  slippageTolerance: number;
+  minWalletBalance: number;
+};
+
 export type UserSettings = {
   id: string;
   user_id: string;
-  max_trade_size: number;
-  stop_loss_percentage: number;
-  take_profit_percentage: number;
+  trade_settings: TradeSettings;
+  enabled_tokens: string[];  // Array of token addresses that are enabled for trading
+  testnet_mode: boolean;  // Whether to use testnet for trades
   created_at: string;
   updated_at: string;
 };
+
+export function convertUserSettingsToTradeSettings(settings: UserSettings): TradeSettings {
+  return {
+    ...settings.trade_settings,
+    minTradeSize: settings.trade_settings.maxTradeSize * 0.01,
+  };
+}
 
 export type InsiderWallet = {
   id: string;
@@ -54,6 +71,34 @@ export type Transaction = {
   timestamp: string;
   created_at: string;
   success: boolean;
+};
+
+export type TradeReplicationConfig = {
+  maxTradeSize: number;  // Maximum size of a single trade in SOL
+  stopLossPercentage: number;  // Stop loss percentage
+  takeProfitPercentage: number;  // Take profit percentage
+  slippageTolerance: number;  // Maximum allowed slippage
+  enabledTokens: Set<string>;  // Set of token addresses enabled for trading
+};
+
+export type TokenConfig = {
+  address: string;
+  symbol: string;
+  decimals: number;
+  enabled: boolean;
+  maxTradeSize?: number;  // Optional override for specific token
+  stopLoss?: number;  // Optional override for specific token
+  takeProfit?: number;  // Optional override for specific token
+};
+
+export type TradeInstruction = {
+  type: 'buy' | 'sell';
+  tokenAddress: string;
+  amount: number;
+  price: number;
+  walletAddress: string;  // Source wallet that executed the trade
+  signature: string;  // Original transaction signature
+  timestamp: number;
 };
 
 export interface Database {

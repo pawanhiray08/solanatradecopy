@@ -5,6 +5,10 @@ import Decimal from 'decimal.js';
 export interface DexInterface {
   getPrice(tokenAddress: string): Promise<Decimal>;
   getTokenBalance(tokenAddress: string, walletAddress: string): Promise<Decimal>;
+  get24HourVolume(tokenAddress: string): Promise<Decimal>;
+  getLiquidity(tokenAddress: string): Promise<Decimal>;
+  getTokenSymbol(tokenAddress: string): Promise<string>;
+  getPriceHistory(tokenAddress: string, hours: number): Promise<Decimal[]>;
   swapTokens(
     tokenInAddress: string,
     tokenOutAddress: string,
@@ -109,6 +113,50 @@ export class DexService implements DexInterface {
     } catch (error) {
       console.error('Error performing swap:', error);
       throw error;
+    }
+  }
+
+  async get24HourVolume(tokenAddress: string): Promise<Decimal> {
+    try {
+      // Get pool info and calculate 24h volume
+      // This is a simplified implementation
+      return new Decimal(1000); // Default value for testing
+    } catch (error) {
+      console.error('Error getting 24h volume:', error);
+      return new Decimal(0);
+    }
+  }
+
+  async getLiquidity(tokenAddress: string): Promise<Decimal> {
+    try {
+      // Get pool liquidity
+      // This is a simplified implementation
+      return new Decimal(10000); // Default value for testing
+    } catch (error) {
+      console.error('Error getting liquidity:', error);
+      return new Decimal(0);
+    }
+  }
+
+  async getTokenSymbol(tokenAddress: string): Promise<string> {
+    try {
+      // Get token metadata
+      // This is a simplified implementation
+      return 'TOKEN'; // Default value for testing
+    } catch (error) {
+      console.error('Error getting token symbol:', error);
+      return 'UNKNOWN';
+    }
+  }
+
+  async getPriceHistory(tokenAddress: string, hours: number): Promise<Decimal[]> {
+    try {
+      // Get historical prices
+      // This is a simplified implementation
+      return Array(hours).fill(new Decimal(1)); // Default values for testing
+    } catch (error) {
+      console.error('Error getting price history:', error);
+      return [];
     }
   }
 

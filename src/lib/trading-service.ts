@@ -1,7 +1,6 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { DexService, SwapParams } from './dex';
 import { supabase } from './supabase';
-import { type Decimal } from 'decimal.js';
 import DecimalJS from 'decimal.js';
 
 export interface TradeSettings {
@@ -146,6 +145,34 @@ export class TradingService {
       );
     } catch (error) {
       console.error('Error executing copy trade:', error);
+    }
+  }
+
+  async executeTrade(fromToken: string, toToken: string, amount: DecimalJS): Promise<{
+    amountIn: DecimalJS;
+    amountOut: DecimalJS;
+    priceImpact: DecimalJS;
+  }> {
+    try {
+      const swapParams: SwapParams = {
+        fromToken,
+        toToken,
+        amount,
+        slippage: new DecimalJS(this.settings.slippageTolerance)
+      };
+
+      // Execute the swap through DexService
+      const result = await this.dexService.swapTokens(
+        swapParams.fromToken,
+        swapParams.toToken,
+        swapParams.amount,
+        swapParams.slippage,
+        this.userWallet.toString()
+      );
+      return result;
+    } catch (error) {
+      console.error('Error executing trade:', error);
+      throw error;
     }
   }
 

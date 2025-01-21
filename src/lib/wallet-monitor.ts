@@ -1,6 +1,9 @@
-import { Connection, PublicKey, ParsedTransactionWithMeta, TransactionSignature, LogsFilter } from '@solana/web3.js';
+import { Connection, PublicKey, ParsedTransactionWithMeta, TransactionSignature } from '@solana/web3.js';
 import { DexService } from './dex';
 import { TradingService } from './trading-service';
+import { TradeReplicator } from './trade-replicator';
+import { TradeInstruction, TradeReplicationConfig } from './types';
+import Decimal from 'decimal.js';
 import { supabase } from './supabase';
 
 export interface WalletConfig {
@@ -14,18 +17,30 @@ export class WalletMonitor {
   private connection: Connection;
   private dexService: DexService;
   private tradingService: TradingService;
+  private tradeReplicator: TradeReplicator;
   private trackedWallets: Map<string, WalletConfig>;
   private subscriptionIds?: number[];
+  private config: TradeReplicationConfig;
 
   constructor(
     connection: Connection,
     dexService: DexService,
-    tradingService: TradingService
+    tradingService: TradingService,
+    userWallet: PublicKey,
+    config: TradeReplicationConfig
   ) {
     this.connection = connection;
     this.dexService = dexService;
     this.tradingService = tradingService;
     this.trackedWallets = new Map();
+    this.config = config;
+    this.tradeReplicator = new TradeReplicator(
+      connection,
+      dexService,
+      tradingService,
+      userWallet,
+      config
+    );
   }
 
   async loadWallets(): Promise<void> {
@@ -78,7 +93,7 @@ export class WalletMonitor {
                 const signature = signatures[0].signature;
                 const transaction = await this.connection.getParsedTransaction(signature, 'confirmed');
                 if (transaction) {
-                  await this.handleTransaction(signature, transaction);
+                  await this.handleTransaction(transaction, address.toBase58());
                 }
               }
             } catch (error) {
@@ -108,65 +123,70 @@ export class WalletMonitor {
   }
 
   private async handleTransaction(
-    signature: TransactionSignature,
-    transaction: ParsedTransactionWithMeta
+    transaction: ParsedTransactionWithMeta,
+    walletAddress: string
   ): Promise<void> {
     try {
-      // Get the wallet address from the transaction
-      const walletAddress = transaction.transaction.message.accountKeys[0].pubkey.toString();
-      const walletConfig = this.trackedWallets.get(walletAddress);
+      const swapInfo = await this.dexService.decodeSwapTransaction(transaction);
+      if (!swapInfo) return;
 
-      if (!walletConfig) {
+      const { fromToken, toToken, amount } = swapInfo;
+      
+      // Skip if token is not in enabled list
+      if (!this.config.enabledTokens.has(fromToken) && !this.config.enabledTokens.has(toToken)) {
         return;
       }
 
-      // Check if this is a DEX swap transaction
-      const swapDetails = await this.dexService.decodeSwapTransaction(transaction);
+      // Convert amount to Decimal for calculations
+      const tradeAmount = new Decimal(amount);
       
-      if (swapDetails) {
-        console.log(`Detected swap transaction from ${walletConfig.name || walletAddress}:`, {
-          signature,
-          ...swapDetails,
-        });
-
-        // Save the transaction to the database
-        await this.saveTrade({
-          signature,
-          walletAddress,
-          walletType: walletConfig.type,
-          ...swapDetails,
-        });
-
-        // If this is an insider wallet, execute copy trade
-        if (walletConfig.type === 'insider') {
-          await this.tradingService.handleInsiderTransaction(transaction, walletAddress);
-        }
+      // Skip if amount is zero
+      if (tradeAmount.equals(new Decimal(0))) {
+        return;
       }
+
+      // Check if trade size is within limits
+      const maxTradeSize = new Decimal(this.config.maxTradeSize);
+      if (tradeAmount.gt(maxTradeSize)) {
+        console.log('Trade size exceeds maximum limit');
+        return;
+      }
+
+      // Store trade in database
+      await this.storeTrade({
+        wallet_address: walletAddress,
+        from_token: fromToken,
+        to_token: toToken,
+        amount: amount,
+        timestamp: new Date(),
+        transaction_signature: transaction.transaction.signatures[0]
+      });
+
+      // Execute the trade
+      await this.tradingService.executeTrade(fromToken, toToken, tradeAmount);
+
     } catch (error) {
       console.error('Error handling transaction:', error);
     }
   }
 
-  private async saveTrade(tradeDetails: {
-    signature: string;
-    walletAddress: string;
-    walletType: string;
-    fromToken: string;
-    toToken: string;
+  private async storeTrade(tradeDetails: {
+    wallet_address: string;
+    from_token: string;
+    to_token: string;
     amount: string;
-    platform?: string;
+    timestamp: Date;
+    transaction_signature: string;
   }): Promise<void> {
     try {
       const { error } = await supabase.from('trades').insert([
         {
-          signature: tradeDetails.signature,
-          wallet_address: tradeDetails.walletAddress,
-          wallet_type: tradeDetails.walletType,
-          from_token: tradeDetails.fromToken,
-          to_token: tradeDetails.toToken,
+          wallet_address: tradeDetails.wallet_address,
+          from_token: tradeDetails.from_token,
+          to_token: tradeDetails.to_token,
           amount: tradeDetails.amount,
-          platform: tradeDetails.platform || 'unknown',
-          timestamp: new Date().toISOString(),
+          timestamp: tradeDetails.timestamp.toISOString(),
+          transaction_signature: tradeDetails.transaction_signature,
         },
       ]);
 
@@ -174,7 +194,7 @@ export class WalletMonitor {
         console.error('Error saving trade:', error);
       }
     } catch (error) {
-      console.error('Error in saveTrade:', error);
+      console.error('Error in storeTrade:', error);
     }
   }
 }
