@@ -153,7 +153,7 @@ export class TradeReplicator {
           this.userWallet.toString()
         );
 
-        if (balance.isZero()) continue;
+        if (balance.equals(0)) continue;
 
         // Get current price
         const currentPrice = await this.dexService.getPrice(tokenAddress);
