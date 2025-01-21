@@ -1,4 +1,4 @@
-import { Connection, PublicKey, ParsedTransactionWithMeta, TransactionSignature } from '@solana/web3.js';
+import { Connection, PublicKey, ParsedTransactionWithMeta, TransactionSignature, LogsFilter } from '@solana/web3.js';
 import { DexService } from './dex';
 import { TradingService } from './trading-service';
 import { supabase } from './supabase';
@@ -15,7 +15,7 @@ export class WalletMonitor {
   private dexService: DexService;
   private tradingService: TradingService;
   private trackedWallets: Map<string, WalletConfig>;
-  private subscriptionId?: number;
+  private subscriptionIds?: number[];
 
   constructor(
     connection: Connection,
@@ -61,37 +61,36 @@ export class WalletMonitor {
       // Load wallets before starting monitoring
       await this.loadWallets();
 
-      // Create an array of PublicKeys for all tracked wallets
+      // Convert tracked wallet addresses to PublicKeys
       const walletAddresses = Array.from(this.trackedWallets.keys()).map(
         (address) => new PublicKey(address)
       );
 
-      // Subscribe to transaction notifications for all tracked wallets
-      this.subscriptionId = this.connection.onLogs(
-        walletAddresses,
-        'confirmed',
-        async (logs) => {
-          if (logs.err) {
-            console.error('Transaction error:', logs.err);
-            return;
-          }
-
-          try {
-            const signature = logs.signature;
-            const transaction = await this.connection.getParsedTransaction(
-              signature,
-              'confirmed'
-            );
-
-            if (transaction) {
-              await this.handleTransaction(signature, transaction);
+      // Subscribe to each wallet's account changes
+      const subscriptionPromises = walletAddresses.map(async (address) => {
+        return this.connection.onAccountChange(
+          address,
+          async (accountInfo) => {
+            try {
+              // Get recent signatures for this account
+              const signatures = await this.connection.getSignaturesForAddress(address, { limit: 1 });
+              if (signatures.length > 0) {
+                const signature = signatures[0].signature;
+                const transaction = await this.connection.getParsedTransaction(signature, 'confirmed');
+                if (transaction) {
+                  await this.handleTransaction(signature, transaction);
+                }
+              }
+            } catch (error) {
+              console.error('Error processing account change:', error);
             }
-          } catch (error) {
-            console.error('Error processing transaction:', error);
-          }
-        }
-      );
+          },
+          'confirmed'
+        );
+      });
 
+      // Store all subscription IDs
+      this.subscriptionIds = await Promise.all(subscriptionPromises);
       console.log('Started monitoring wallets');
     } catch (error) {
       console.error('Error in startMonitoring:', error);
@@ -99,9 +98,11 @@ export class WalletMonitor {
   }
 
   stopMonitoring(): void {
-    if (this.subscriptionId !== undefined) {
-      this.connection.removeOnLogsListener(this.subscriptionId);
-      this.subscriptionId = undefined;
+    if (this.subscriptionIds !== undefined) {
+      this.subscriptionIds.forEach((id) => {
+        this.connection.removeAccountChangeListener(id);
+      });
+      this.subscriptionIds = undefined;
       console.log('Stopped monitoring wallets');
     }
   }

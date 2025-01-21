@@ -1,4 +1,4 @@
-import { Connection, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, sendAndConfirmTransaction, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import Decimal from 'decimal.js';
 
@@ -109,6 +109,38 @@ export class DexService implements DexInterface {
     } catch (error) {
       console.error('Error performing swap:', error);
       throw error;
+    }
+  }
+
+  async decodeSwapTransaction(transaction: ParsedTransactionWithMeta): Promise<{ fromToken: string; toToken: string; amount: string } | null> {
+    try {
+      // Check if this is a swap transaction by looking at the program ID
+      const programId = transaction.transaction.message.accountKeys[0].pubkey.toString();
+      
+      // Add your DEX-specific logic here to decode the transaction
+      // This is a basic example - you'll need to adjust based on your specific DEX
+      if (programId === this.programId.toString()) {
+        // Extract token accounts from the transaction
+        const accounts = transaction.transaction.message.accountKeys;
+        
+        // Find the relevant token accounts (this logic will vary based on your DEX)
+        const fromToken = accounts[1].pubkey.toString();
+        const toToken = accounts[2].pubkey.toString();
+        
+        // Get the amount from the transaction data
+        const amount = "1.0"; // Replace with actual amount extraction logic
+        
+        return {
+          fromToken,
+          toToken,
+          amount
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error decoding swap transaction:', error);
+      return null;
     }
   }
 }
