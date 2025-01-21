@@ -1,4 +1,4 @@
-import { Connection, PublicKey, Transaction, sendAndConfirmTransaction, ParsedTransactionWithMeta } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, sendAndConfirmTransaction, ParsedTransactionWithMeta, ParsedInstruction, PartiallyDecodedInstruction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import Decimal from 'decimal.js';
 
@@ -208,25 +208,39 @@ export class DexService implements DexInterface {
       // Look for token swaps/trades
       for (const instruction of programInvocations) {
         // Check if this is a token swap instruction
-        const isSwap = instruction.instructions.some(ix => 
-          'programId' in ix && ix.programId.equals(TOKEN_PROGRAM_ID) && 
-          ix.parsed?.type && ['transfer', 'transferChecked'].includes(ix.parsed.type)
-        );
+        const isSwap = instruction.instructions.some((ix: ParsedInstruction | PartiallyDecodedInstruction) => {
+          if (!('programId' in ix)) return false;
+          if (!ix.programId.equals(TOKEN_PROGRAM_ID)) return false;
+          if ('parsed' in ix && ix.parsed) {
+            return ['transfer', 'transferChecked'].includes(ix.parsed.type);
+          }
+          return false;
+        });
 
         if (isSwap) {
           // Extract token addresses and amounts from the instruction
-          const transfers = instruction.instructions.filter(ix => 
-            'programId' in ix && ix.programId.equals(TOKEN_PROGRAM_ID) && 
-            ix.parsed?.type && ['transfer', 'transferChecked'].includes(ix.parsed.type)
-          );
+          const transfers = instruction.instructions.filter((ix: ParsedInstruction | PartiallyDecodedInstruction) => {
+            if (!('programId' in ix)) return false;
+            if (!ix.programId.equals(TOKEN_PROGRAM_ID)) return false;
+            if ('parsed' in ix && ix.parsed) {
+              return ['transfer', 'transferChecked'].includes(ix.parsed.type);
+            }
+            return false;
+          });
 
           if (transfers.length >= 2) {
-            return {
-              fromToken: transfers[0].parsed.source,
-              toToken: transfers[1].parsed.destination,
-              amount: transfers[0].parsed.amount,
-              type: 'swap'
-            };
+            // Type guard to ensure we have ParsedInstructions
+            const transfer0 = transfers[0];
+            const transfer1 = transfers[1];
+            
+            if ('parsed' in transfer0 && 'parsed' in transfer1 && transfer0.parsed && transfer1.parsed) {
+              return {
+                fromToken: transfer0.parsed.source,
+                toToken: transfer1.parsed.destination,
+                amount: transfer0.parsed.amount,
+                type: 'swap'
+              };
+            }
           }
         }
       }
