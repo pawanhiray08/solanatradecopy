@@ -4,32 +4,12 @@ import { useState, Dispatch, SetStateAction } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
+import { getConnection } from '@/config/solana';
+import { toast } from 'react-hot-toast';
 
 interface TradeExecutorProps {
   onTokenSelect: Dispatch<SetStateAction<string | null>>;
 }
-
-const getConnection = async () => {
-  const primaryRpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-  const backupRpc = process.env.NEXT_PUBLIC_SOLANA_BACKUP_RPC_URL;
-  
-  try {
-    const connection = new Connection(primaryRpc!, 'confirmed');
-    await connection.getVersion(); // Test the connection
-    return connection;
-  } catch (error) {
-    console.warn('Primary RPC failed, falling back to backup:', error);
-    if (!backupRpc) throw new Error('No backup RPC configured');
-    
-    const backupConnection = new Connection(backupRpc, 'confirmed');
-    try {
-      await backupConnection.getVersion();
-      return backupConnection;
-    } catch (backupError) {
-      throw new Error('All RPC endpoints failed');
-    }
-  }
-};
 
 export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
   const { publicKey, signTransaction } = useWallet();
@@ -37,6 +17,8 @@ export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
   const [stopLoss, setStopLoss] = useState<number>(10); // percentage
   const [takeProfit, setTakeProfit] = useState<number>(20); // percentage
   const [isAutoTrading, setIsAutoTrading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function executeSwap(
     tokenInMint: PublicKey,
@@ -44,120 +26,129 @@ export function TradeExecutor({ onTokenSelect }: TradeExecutorProps) {
     amount: number
   ) {
     if (!publicKey || !signTransaction) {
-      throw new Error('Wallet not connected');
+      toast.error('Please connect your wallet first');
+      return;
     }
 
-    // Get connection with failover support
-    const connection = await getConnection();
+    setLoading(true);
+    setError(null);
 
     try {
-      // Check SOL balance first
-      const balance = await connection.getBalance(publicKey);
-      const minimumBalance = 0.05 * 1e9; // 0.05 SOL for fees
-      if (balance < minimumBalance) {
-        throw new Error(`Insufficient SOL balance. Minimum required: 0.05 SOL for fees. Current balance: ${balance / 1e9} SOL`);
-      }
+      // Get connection with failover support
+      const connection = await getConnection();
 
-      // Check token balance if swapping tokens
-      const tokenBalance = await connection.getTokenAccountBalance(
-        await getAssociatedTokenAddress(tokenInMint, publicKey)
-      ).catch(() => null);
+      // Get token accounts
+      const tokenInAccount = await getAssociatedTokenAddress(
+        tokenInMint,
+        publicKey
+      );
 
-      if (!tokenBalance) {
-        throw new Error('Token account not found. Please check if you have the token in your wallet.');
-      }
+      const tokenOutAccount = await getAssociatedTokenAddress(
+        tokenOutMint,
+        publicKey
+      );
 
-      if (Number(tokenBalance.value.amount) < amount) {
-        throw new Error(`Insufficient token balance. Required: ${amount}, Available: ${tokenBalance.value.uiAmount}`);
-      }
-
-      // Create and prepare transaction
+      // Create transaction
       const transaction = new Transaction();
-      transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      transaction.feePayer = publicKey;
-      
-      // Add your swap instruction here based on the DEX you're using
-      // For example, with Raydium:
-      // const swapInstruction = await createRaydiumSwapInstruction(...);
-      // transaction.add(swapInstruction);
+
+      // Add your swap instruction here
+      // This is a placeholder - you'll need to implement the actual swap logic
+      // based on your chosen DEX (e.g., Raydium, Orca, etc.)
 
       // Sign and send transaction
-      const signedTx = await signTransaction(transaction);
-      const signature = await connection.sendRawTransaction(signedTx.serialize());
+      transaction.recentBlockhash = (
+        await connection.getLatestBlockhash()
+      ).blockhash;
+      transaction.feePayer = publicKey;
+
+      const signed = await signTransaction(transaction);
+      const signature = await connection.sendRawTransaction(signed.serialize());
       
-      // Wait for confirmation with specific commitment
-      const confirmation = await connection.confirmTransaction({
-        signature,
-        blockhash: transaction.recentBlockhash,
-        lastValidBlockHeight: (await connection.getLatestBlockhash()).lastValidBlockHeight
-      }, 'confirmed');
-
-      if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
-      }
-
-      console.log('Swap executed successfully:', signature);
-      return signature;
-    } catch (error) {
-      console.error('Error executing swap:', error);
-      throw error;
+      await connection.confirmTransaction(signature);
+      
+      toast.success('Swap executed successfully!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to execute swap';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-semibold mb-4">Trade Settings</h2>
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">Trade Executor</h2>
       
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Max Trade Size (SOL)
-          </label>
+      <div className="space-y-2">
+        <label className="block">
+          <span>Max Trade Size (SOL)</span>
           <input
             type="number"
             value={maxTradeSize}
             onChange={(e) => setMaxTradeSize(Number(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+            min={0.1}
+            step={0.1}
           />
-        </div>
+        </label>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Stop Loss (%)
-          </label>
+        <label className="block">
+          <span>Stop Loss (%)</span>
           <input
             type="number"
             value={stopLoss}
             onChange={(e) => setStopLoss(Number(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+            min={1}
+            max={100}
           />
-        </div>
+        </label>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Take Profit (%)
-          </label>
+        <label className="block">
+          <span>Take Profit (%)</span>
           <input
             type="number"
             value={takeProfit}
             onChange={(e) => setTakeProfit(Number(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+            min={1}
+            max={1000}
           />
-        </div>
+        </label>
 
-        <div className="flex items-center">
-          <button
-            onClick={() => setIsAutoTrading(!isAutoTrading)}
-            className={`px-4 py-2 rounded-md ${
-              isAutoTrading 
-                ? 'bg-red-500 hover:bg-red-600' 
-                : 'bg-green-500 hover:bg-green-600'
-            } text-white font-medium`}
-          >
-            {isAutoTrading ? 'Stop Auto Trading' : 'Start Auto Trading'}
-          </button>
+        <div className="flex items-center space-x-2">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={isAutoTrading}
+              onChange={(e) => setIsAutoTrading(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 shadow-sm"
+            />
+            <span className="ml-2">Enable Auto-Trading</span>
+          </label>
         </div>
       </div>
+
+      {error && (
+        <div className="text-red-500 text-sm">{error}</div>
+      )}
+
+      {!publicKey ? (
+        <div className="text-amber-500">Please connect your wallet to start trading</div>
+      ) : (
+        <button
+          onClick={() => {/* Implement your trading logic */}}
+          disabled={loading || !isAutoTrading}
+          className={`w-full py-2 px-4 rounded-md ${
+            loading || !isAutoTrading
+              ? 'bg-gray-300 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {loading ? 'Processing...' : 'Start Trading'}
+        </button>
+      )}
     </div>
   );
 }
