@@ -1,7 +1,8 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { DexService, SwapParams } from './dex';
 import { supabase } from './supabase';
-import Decimal from 'decimal.js';
+import { type Decimal } from 'decimal.js';
+import DecimalJS from 'decimal.js';
 
 export interface TradeSettings {
   maxTradeSize: number;
@@ -67,12 +68,13 @@ export class TradingService {
         if (accounts.length < 2) continue;
 
         // Parse the instruction data to get swap details
-        // This is simplified, you'll need to implement actual parsing logic
+        const buffer = Buffer.from(instruction.data);
+        const hexData = buffer.subarray(8, 16).toString('hex');
         return {
           fromToken: accounts[0].toString(), // Extract from instruction
           toToken: accounts[1].toString(),   // Extract from instruction
-          amount: new Decimal(instruction.data.toString('hex', 8, 16)), // Extract from instruction
-          slippage: new Decimal(0),         // Calculate from amounts
+          amount: new DecimalJS(parseInt(hexData, 16)), // Extract from instruction
+          slippage: new DecimalJS(0),         // Calculate from amounts
         };
       }
     }
@@ -86,18 +88,15 @@ export class TradingService {
     swapDetails: {
       fromToken: string;
       toToken: string;
-      amount: typeof Decimal;
-      slippage: typeof Decimal;
+      amount: DecimalJS;
+      slippage: DecimalJS;
     }
   ) {
     const { error } = await supabase
-      .from('transactions')
+      .from('trades')
       .insert({
         signature,
         wallet_address: insiderWallet,
-        type: 'swap',
-        token_in: swapDetails.fromToken,
-        token_out: swapDetails.toToken,
         amount_in: swapDetails.amount.toString(),
         amount_out: swapDetails.amount.mul(swapDetails.slippage).toString(),
         dex: 'raydium',
@@ -112,16 +111,16 @@ export class TradingService {
   private async executeCopyTrade(swapDetails: {
     fromToken: string;
     toToken: string;
-    amount: typeof Decimal;
-    slippage: typeof Decimal;
+    amount: DecimalJS;
+    slippage: DecimalJS;
   }) {
     try {
       // Calculate trade size based on settings
       const tradeSize = this.calculateTradeSize(swapDetails.amount);
       
       const swapParams: SwapParams = {
-        fromToken: new PublicKey(swapDetails.fromToken),
-        toToken: new PublicKey(swapDetails.toToken),
+        fromToken: swapDetails.fromToken,
+        toToken: swapDetails.toToken,
         amount: tradeSize,
         slippage: swapDetails.slippage
       };
@@ -129,36 +128,36 @@ export class TradingService {
       // Check if we have enough balance
       const balance = await this.dexService.getTokenBalance(
         this.userWallet.toString(),
-        swapParams.fromToken.toString()
+        swapDetails.fromToken
       );
 
-      if (balance.lessThan(tradeSize)) {
-        console.error('Insufficient balance for trade');
+      if (balance.lt(tradeSize)) {
+        console.error('Insufficient balance for copy trade');
         return;
       }
 
       // Execute the swap
-      const result = await this.dexService.swapTokens(
-        swapParams.fromToken.toString(),
-        swapParams.toToken.toString(),
+      await this.dexService.swapTokens(
+        swapParams.fromToken,
+        swapParams.toToken,
         swapParams.amount,
         swapParams.slippage,
         this.userWallet.toString()
       );
-
-      console.log('Copy trade executed:', result);
     } catch (error) {
       console.error('Error executing copy trade:', error);
     }
   }
 
-  private calculateTradeSize(insiderAmount: typeof Decimal): typeof Decimal {
+  private calculateTradeSize(insiderAmount: DecimalJS): DecimalJS {
     // Convert max trade size from SOL to lamports
-    const maxSize = new Decimal(this.settings.maxTradeSize).mul(new Decimal(10).pow(9));
-    const minSize = new Decimal(this.settings.minTradeSize).mul(new Decimal(10).pow(9));
+    const maxSize = new DecimalJS(this.settings.maxTradeSize).mul(new DecimalJS(10).pow(9));
+    const minSize = new DecimalJS(this.settings.minTradeSize).mul(new DecimalJS(10).pow(9));
     
-    // Use the smaller of insider's trade size or our max size, but not less than min size
-    return Decimal.max(Decimal.min(insiderAmount, maxSize), minSize);
+    // First get the minimum between insiderAmount and maxSize
+    const minResult = insiderAmount.lt(maxSize) ? insiderAmount : maxSize;
+    // Then ensure it's not less than minSize
+    return minResult.gt(minSize) ? minResult : minSize;
   }
 
   private async verifyApiEndpoints() {
@@ -179,7 +178,7 @@ export class TradingService {
       }
 
       // Check for necessary tables in the Supabase database
-      const tables = ['transactions'];
+      const tables = ['trades'];
       for (const table of tables) {
         const response = await supabase.from(table).select('id');
         if (response.error) {
