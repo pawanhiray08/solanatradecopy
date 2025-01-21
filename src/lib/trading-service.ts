@@ -176,6 +176,33 @@ export class TradingService {
     }
   }
 
+  async swapTokens(
+    fromToken: string,
+    toToken: string,
+    amount: DecimalJS,
+    slippageTolerance: DecimalJS,
+    walletAddress: string
+  ) {
+    try {
+      const result = await this.dexService.swapTokens(
+        fromToken,
+        toToken,
+        amount,
+        slippageTolerance,
+        walletAddress
+      );
+      
+      return {
+        amountIn: result.amountIn,
+        amountOut: result.amountOut,
+        priceImpact: result.priceImpact
+      };
+    } catch (error) {
+      console.error('Error executing swap:', error);
+      throw error;
+    }
+  }
+
   private calculateTradeSize(insiderAmount: DecimalJS): DecimalJS {
     // Convert max trade size from SOL to lamports
     const maxSize = new DecimalJS(this.settings.maxTradeSize).mul(new DecimalJS(10).pow(9));
