@@ -21,15 +21,15 @@ const WalletModalProviderDynamic = dynamic(
 );
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // You can change this to 'Devnet' | 'Testnet' | 'Mainnet' based on your needs
-  const network = WalletAdapterNetwork.Devnet;
+  // You can change this to 'Devnet' | 'Mainnet' based on your needs
+  const network = 'devnet';
   
   // Use the provided RPC URL or fall back to the default one
   const endpoint = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
     if (url) return url;
     console.warn('No custom RPC URL provided, falling back to default', network);
-    return clusterApiUrl(network);
+    return clusterApiUrl(network as WalletAdapterNetwork);
   }, [network]);
 
   // Initialize the wallet adapters

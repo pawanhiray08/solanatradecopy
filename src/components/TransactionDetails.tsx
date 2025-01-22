@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 
 interface Transaction {
   id: string;
@@ -165,14 +166,14 @@ export function TransactionDetails() {
                   </div>
                   <div className="mt-2">
                     <div className="font-medium">Transaction Signature</div>
-                    <a
-                      href={`https://explorer.solana.com/tx/${tx.signature}?cluster=testnet`}
+                    <Link
+                      className="text-blue-500 hover:text-blue-600"
+                      href={`https://spl_governance.devnet.explorer.indexer.queryworker.dev/tx/${tx.signature}?cluster=devnet`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-500 hover:text-blue-600"
                     >
                       {shortenAddress(tx.signature)}
-                    </a>
+                    </Link>
                   </div>
                 </div>
               )}

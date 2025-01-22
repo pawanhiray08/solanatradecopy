@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Solana Copy Trading',
-  description: 'Copy trade on Solana testnet',
+  description: 'Copy trade on Solana devnet',
 };
 
 export default function RootLayout({

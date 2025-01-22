@@ -5,15 +5,15 @@ import { WalletMonitor } from './wallet-monitor';
 import { AnalyticsService } from './analytics-service';
 import { TradeReplicationConfig, UserSettings, convertUserSettingsToTradeSettings } from './types';
 
-// Raydium Testnet Swap V2 Program ID
-const DEX_PROGRAM_ID = new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8');
+// Raydium Devnet Swap V2 Program ID
+const DEX_PROGRAM_ID = new PublicKey(process.env.RAYDIUM_SWAP_V2_PROGRAM_ID || '');
 
-// Use Testnet endpoint
-const TESTNET_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl('testnet');
+// Use Devnet endpoint
+const DEVNET_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl('devnet');
 
 // Initialize services
 export function initializeServices(
-  connection: Connection = new Connection(TESTNET_ENDPOINT),
+  connection: Connection = new Connection(DEVNET_ENDPOINT),
   userWallet: PublicKey,
   settings: UserSettings,
   userId: string
@@ -51,27 +51,27 @@ export function initializeServices(
   };
 }
 
-// Helper function to check if we're on testnet
-export function isTestnet(connection: Connection): boolean {
-  return connection.rpcEndpoint === TESTNET_ENDPOINT || 
-         connection.rpcEndpoint.includes('testnet');
+// Helper function to check if we're on devnet
+export function isDevnet(connection: Connection): boolean {
+  return connection.rpcEndpoint === DEVNET_ENDPOINT || 
+         connection.rpcEndpoint.includes('devnet');
 }
 
-// Helper function to validate testnet configuration
-export async function validateTestnetConfig(connection: Connection): Promise<boolean> {
+// Helper function to validate devnet configuration
+export async function validateDevnetConfig(connection: Connection): Promise<boolean> {
   try {
-    if (!isTestnet(connection)) {
-      console.error('Error: Application must run on Testnet');
+    if (!isDevnet(connection)) {
+      console.error('Error: Application must run on Devnet');
       return false;
     }
 
     // Verify connection
     const version = await connection.getVersion();
-    console.log('Connected to Solana Testnet:', version);
+    console.log('Connected to Solana Devnet:', version);
 
     return true;
   } catch (error) {
-    console.error('Error validating testnet configuration:', error);
+    console.error('Error validating devnet configuration:', error);
     return false;
   }
 }
