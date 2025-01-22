@@ -35,6 +35,18 @@ interface CoordinatedTrade {
   detected_at: string;
 }
 
+interface TradeData {
+  id: number;
+  wallet_address: string;
+  transaction_hash: string;
+  token_address: string;
+  trade_type: string;
+  amount: number;
+  price: number;
+  detected_at: string;
+  status: string;
+}
+
 export function TradingDashboard() {
   const { publicKey } = useWallet();
   const [rankings, setRankings] = useState<WalletRanking[]>([]);
@@ -45,6 +57,7 @@ export function TradingDashboard() {
   const [insiderPortfolio, setInsiderPortfolio] = useState<any[]>([]);
   const [lastTrades, setLastTrades] = useState<any[]>([]);
   const [futureTrades, setFutureTrades] = useState<any[]>([]);
+  const [trades, setTrades] = useState<TradeData[]>([]);
 
   useEffect(() => {
     if (publicKey) {
@@ -52,6 +65,7 @@ export function TradingDashboard() {
       fetchInsiderPortfolio();
       fetchLastTrades();
       fetchFutureTrades();
+      fetchDashboardData();
     }
   }, [publicKey]);
 
@@ -154,14 +168,32 @@ export function TradingDashboard() {
     }
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('coordinated_trades')
+        .select('*')
+        .order('detected_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setTrades(data || []);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error loading dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div>Loading dashboard...</div>;
+  if (error) return <div>Error: {error}</div>;
+
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="p-4 text-red-700 bg-red-100 rounded-md">
-          {error}
-        </div>
-      )}
-
       {/* Wallet Rankings */}
       <div className="bg-white p-6 rounded-lg shadow-sm">
         <h2 className="text-2xl font-bold mb-4">Top Wallets</h2>
@@ -339,6 +371,41 @@ export function TradingDashboard() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Trading Dashboard */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <h2 className="text-2xl font-bold mb-4">Trading Dashboard</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white">
+            <thead>
+              <tr>
+                <th className="px-4 py-2">Time</th>
+                <th className="px-4 py-2">Wallet</th>
+                <th className="px-4 py-2">Type</th>
+                <th className="px-4 py-2">Token</th>
+                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Price</th>
+                <th className="px-4 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((trade) => (
+                <tr key={trade.id}>
+                  <td className="px-4 py-2">
+                    {new Date(trade.detected_at).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2">{trade.wallet_address.slice(0, 8)}...</td>
+                  <td className="px-4 py-2">{trade.trade_type}</td>
+                  <td className="px-4 py-2">{trade.token_address.slice(0, 8)}...</td>
+                  <td className="px-4 py-2">{trade.amount}</td>
+                  <td className="px-4 py-2">{trade.price}</td>
+                  <td className="px-4 py-2">{trade.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

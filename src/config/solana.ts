@@ -37,6 +37,7 @@ export const getConnection = async () => {
 export const getBalance = async (connection: Connection, publicKey: string) => {
   try {
     const balance = await connection.getBalance(new PublicKey(publicKey));
+    console.log(`Balance for ${publicKey}: ${balance / 10 ** 9} SOL`); // Log balance
     return balance / 10 ** 9; // Convert lamports to SOL
   } catch (error) {
     console.error('Failed to fetch balance:', error);

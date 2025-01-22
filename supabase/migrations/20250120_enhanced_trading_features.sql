@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS coordinated_trades (
     total_volume DECIMAL DEFAULT 0,
     average_price DECIMAL,
     dex_platform TEXT,
-    detected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -82,3 +83,22 @@ CREATE INDEX IF NOT EXISTS idx_wallet_trades ON dex_trades(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_trade_timestamp ON dex_trades(created_at);
 CREATE INDEX IF NOT EXISTS idx_coordinated_trades_token ON coordinated_trades(token_address);
 CREATE INDEX IF NOT EXISTS idx_wallet_settings ON trade_settings(wallet_address);
+
+-- Add new columns to coordinated_trades table
+ALTER TABLE coordinated_trades 
+ADD COLUMN IF NOT EXISTS detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+-- Add trigger to automatically update updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_coordinated_trades_updated_at
+    BEFORE UPDATE ON coordinated_trades
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
