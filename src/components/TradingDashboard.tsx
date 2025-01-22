@@ -5,6 +5,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { supabase } from '@/lib/supabase';
 import { getConnection, getBalance } from '@/config/solana';
 import Link from 'next/link';
+import { PublicKey } from '@solana/web3.js';
 
 interface WalletRanking {
   wallet_address: string;
@@ -57,30 +58,33 @@ export function TradingDashboard() {
         .select('wallet_address, label, win_rate, total_profit_loss, current_balance')
         .order('created_at', { ascending: false });
 
-      if (walletsError) throw walletsError;
+      if (walletsError) {
+        console.error('Error fetching insider wallets:', walletsError);
+        return;
+      }
 
       // Fetch balances for each wallet
       const walletsWithBalances = await Promise.all(
         (walletsData || []).map(async (wallet) => {
           try {
-            const balance = await getBalance(connection, wallet.wallet_address);
+            const balance = await getBalance(connection, new PublicKey(wallet.wallet_address));
             return {
               wallet_address: wallet.wallet_address,
-              label: wallet.label,
-              balance,
-              win_rate: wallet.win_rate,
-              total_profit_loss: wallet.total_profit_loss,
-              current_balance: wallet.current_balance
+              label: wallet.label || 'Unknown',
+              balance: balance ? Number(balance) : 0,
+              win_rate: wallet.win_rate || 0,
+              total_profit_loss: wallet.total_profit_loss || 0,
+              current_balance: wallet.current_balance || 0
             };
           } catch (error) {
             console.error(`Error fetching balance for wallet ${wallet.wallet_address}:`, error);
             return {
               wallet_address: wallet.wallet_address,
-              label: wallet.label,
+              label: wallet.label || 'Unknown',
               balance: 0,
-              win_rate: wallet.win_rate,
-              total_profit_loss: wallet.total_profit_loss,
-              current_balance: wallet.current_balance
+              win_rate: wallet.win_rate || 0,
+              total_profit_loss: wallet.total_profit_loss || 0,
+              current_balance: wallet.current_balance || 0
             };
           }
         })
