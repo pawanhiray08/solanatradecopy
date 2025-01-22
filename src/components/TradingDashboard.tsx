@@ -33,7 +33,7 @@ export function TradingDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trades, setTrades] = useState<TradeData[]>([]);
-  const [insiderWallets, setInsiderWallets] = useState<{ address: string; balance: number }[]>([]);
+  const [insiderWallets, setInsiderWallets] = useState<{ wallet_address: string; label: string; balance: number; win_rate: number; total_profit_loss: number; current_balance: number }[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [coordinatedTrades, setCoordinatedTrades] = useState<any[]>([]);
   const [lastTrades, setLastTrades] = useState<any[]>([]);
@@ -54,7 +54,7 @@ export function TradingDashboard() {
       // Fetch insider wallets from your database
       const { data: walletsData, error: walletsError } = await supabase
         .from('insider_wallets')
-        .select('wallet_address')
+        .select('wallet_address, label, win_rate, total_profit_loss, current_balance')
         .order('created_at', { ascending: false });
 
       if (walletsError) throw walletsError;
@@ -65,14 +65,22 @@ export function TradingDashboard() {
           try {
             const balance = await getBalance(connection, wallet.wallet_address);
             return {
-              address: wallet.wallet_address,
-              balance
+              wallet_address: wallet.wallet_address,
+              label: wallet.label,
+              balance,
+              win_rate: wallet.win_rate,
+              total_profit_loss: wallet.total_profit_loss,
+              current_balance: wallet.current_balance
             };
           } catch (error) {
             console.error(`Error fetching balance for wallet ${wallet.wallet_address}:`, error);
             return {
-              address: wallet.wallet_address,
-              balance: 0
+              wallet_address: wallet.wallet_address,
+              label: wallet.label,
+              balance: 0,
+              win_rate: wallet.win_rate,
+              total_profit_loss: wallet.total_profit_loss,
+              current_balance: wallet.current_balance
             };
           }
         })
@@ -175,15 +183,15 @@ export function TradingDashboard() {
             </thead>
             <tbody>
               {insiderWallets.map((wallet) => (
-                <tr key={wallet.address}>
+                <tr key={wallet.wallet_address}>
                   <td className="px-4 py-2">
                     <Link
-                      href={`https://explorer.solana.com/address/${wallet.address}?cluster=devnet`}
+                      href={`https://explorer.solana.com/address/${wallet.wallet_address}?cluster=devnet`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 hover:text-blue-600"
                     >
-                      {wallet.address.slice(0, 8)}...{wallet.address.slice(-4)}
+                      {wallet.wallet_address.slice(0, 8)}...{wallet.wallet_address.slice(-4)}
                     </Link>
                   </td>
                   <td className="px-4 py-2">{wallet.balance.toFixed(4)}</td>

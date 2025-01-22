@@ -11,7 +11,7 @@ ADD COLUMN IF NOT EXISTS rank INTEGER DEFAULT 0;
 -- Create table for trade settings and risk management
 CREATE TABLE IF NOT EXISTS trade_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    wallet_address TEXT REFERENCES insider_wallets(address),
+    wallet_address TEXT REFERENCES insider_wallets(wallet_address),
     max_trade_cap DECIMAL NOT NULL DEFAULT 1,
     stop_loss_percentage DECIMAL DEFAULT 5,
     take_profit_percentage DECIMAL DEFAULT 10,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS trade_settings (
 -- Create table for DEX trades
 CREATE TABLE IF NOT EXISTS dex_trades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    wallet_address TEXT REFERENCES insider_wallets(address),
+    wallet_address TEXT REFERENCES insider_wallets(wallet_address),
     token_address TEXT NOT NULL,
     token_symbol TEXT,
     amount DECIMAL NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS coordinated_trades (
 CREATE TABLE IF NOT EXISTS trade_alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     type TEXT NOT NULL,
-    wallet_address TEXT REFERENCES insider_wallets(address),
+    wallet_address TEXT REFERENCES insider_wallets(wallet_address),
     message TEXT NOT NULL,
     importance TEXT DEFAULT 'medium',
     read BOOLEAN DEFAULT false,
@@ -102,3 +102,38 @@ CREATE TRIGGER update_coordinated_trades_updated_at
     BEFORE UPDATE ON coordinated_trades
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Create insider_wallets table
+CREATE TABLE IF NOT EXISTS insider_wallets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    wallet_address TEXT NOT NULL UNIQUE,
+    label TEXT,
+    win_rate DECIMAL DEFAULT 0,
+    total_profit_loss DECIMAL DEFAULT 0,
+    current_balance DECIMAL DEFAULT 0,
+    rank INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_insider_wallets_address ON insider_wallets(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_insider_wallets_rank ON insider_wallets(rank);
+
+-- Add trigger for updated_at
+CREATE TRIGGER set_insider_wallets_timestamp
+    BEFORE UPDATE ON insider_wallets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Rename address column if it exists (for existing tables)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_name = 'insider_wallets' 
+        AND column_name = 'address'
+    ) THEN
+        ALTER TABLE insider_wallets RENAME COLUMN address TO wallet_address;
+    END IF;
+END $$;
